@@ -24,7 +24,7 @@ NONE = object()
 
 
 def make_tool(request: str, context: ResponseContext, artifacts: dict[str, Artifact]):
-    @tool("process_data", return_direct=True)
+    @tool("process_data")
     async def run(artifact_id: str):
         """
         Filter or transform artifact data.

@@ -60,7 +60,7 @@ class DataHandlerAgent(IChatBioAgent):
         params: Parameters,  # It's safe to assume type Parameter because we only have one entrypoint
     ):
         artifacts = {artifact.local_id: artifact for artifact in params.artifacts}
-        tools = [process_data.make_tool(request, context, artifacts), abort]
+        tools = [process_data.make_tool(request, context, artifacts), abort, finish]
 
         llm = ChatOpenAI(model="gpt-4.1-mini", tool_choice="required")
 
@@ -106,7 +106,13 @@ def make_system_message(artifacts: dict[str, Artifact]):
 
 @tool(return_direct=True)  # This tool ends the agent loop
 async def abort(reason: str):
-    """If you can't do what was asked, abort instead and explain why."""
+    """If you can't fulfill the user's request, abort instead and explain why."""
+    pass
+
+
+@tool(return_direct=True)  # This tool ends the agent loop
+async def finish(message: str):
+    """Mark the user's request as successfully completed."""
     pass
 
 

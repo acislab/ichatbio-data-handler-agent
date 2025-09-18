@@ -10,39 +10,11 @@ from ichatbio.types import Artifact
 
 import agent
 from src.agent import DataHandlerAgent
-
-
-@pytest.mark.asyncio
-async def test__generate_jq_query():
-    jq_query, description, result = await process_json._generate_jq_query(
-        request="Get me the first bug",
-        schema={"type": "string"},
-        source_content=["cricket", "bumblebee"],
-        source_artifact=Artifact(
-            local_id="#0000",
-            mimetype="application/json",
-            description="Just some bugs",
-            uris=["https://artifact.test"],
-            metadata={},
-        ),
-    )
-
-    assert result == ["cricket"]
-
-
-@pytest.mark.skip(reason="Just for reference")
-def test_schema_generation():
-    data = json.loads(
-        importlib.resources.files("resources")
-        .joinpath("idigbio_records_search_result.json")
-        .read_text()
-    )
-    schema = process_json._generate_json_schema(data)
-    pass
+from src.tools import process_data
 
 
 @pytest_asyncio.fixture()
-def the_agent():
+def data_handler():
     return DataHandlerAgent()
 
 
@@ -50,7 +22,7 @@ def the_agent():
     should_mock=lambda request: request.url == "https://artifact.test"
 )
 @pytest.mark.asyncio
-async def test_extract_first_record(the_agent, context, messages, httpx_mock):
+async def test_extract_first_record(data_handler, context, messages, httpx_mock):
     source_data = json.loads(
         importlib.resources.files("resources")
         .joinpath("idigbio_records_search_result.json")
@@ -66,7 +38,7 @@ async def test_extract_first_record(the_agent, context, messages, httpx_mock):
         metadata={"source": "iDigBio"},
     )
 
-    await the_agent.run(
+    await data_handler.run(
         context,
         "Get the first record",
         "process_json",
@@ -122,3 +94,32 @@ If you are unable to fulfill the user's request using your available tools, abor
 """
 
     assert system_message == expected
+
+
+@pytest.mark.asyncio
+async def test__generate_jq_query():
+    jq_query, description, result = await process_data._generate_jq_query(
+        request="Get me the first bug",
+        schema={"type": "string"},
+        source_content=["cricket", "bumblebee"],
+        source_artifact=Artifact(
+            local_id="#0000",
+            mimetype="application/json",
+            description="Just some bugs",
+            uris=["https://artifact.test"],
+            metadata={},
+        ),
+    )
+
+    assert result == ["cricket"]
+
+
+@pytest.mark.skip(reason="Just for reference")
+def test_schema_generation():
+    data = json.loads(
+        importlib.resources.files("resources")
+        .joinpath("idigbio_records_search_result.json")
+        .read_text()
+    )
+    schema = process_data._generate_json_schema(data)
+    pass
