@@ -1,21 +1,15 @@
 import importlib.resources
 import json
 
-import jq
 import pytest
 import pytest_asyncio
-from ichatbio.agent_response import DirectResponse, ProcessBeginResponse, ProcessLogResponse, ArtifactResponse, ResponseMessage
+from ichatbio.agent_response import (
+    ArtifactResponse,
+)
 from ichatbio.types import Artifact
 
+import agent
 from src.agent import DataHandlerAgent
-from src.entrypoints import process_json
-
-
-@pytest.mark.skip(reason="Just for reference")
-def test_jq():
-    data = "1\n2\n3"
-    result = jq.compile(".").input_value(data).first()
-    pass
 
 
 @pytest.mark.asyncio
@@ -29,8 +23,8 @@ async def test__generate_jq_query():
             mimetype="application/json",
             description="Just some bugs",
             uris=["https://artifact.test"],
-            metadata={}
-        )
+            metadata={},
+        ),
     )
 
     assert result == ["cricket"]
@@ -38,22 +32,29 @@ async def test__generate_jq_query():
 
 @pytest.mark.skip(reason="Just for reference")
 def test_schema_generation():
-    data = json.loads(importlib.resources.files("resources").joinpath("idigbio_records_search_result.json") \
-                      .read_text())
+    data = json.loads(
+        importlib.resources.files("resources")
+        .joinpath("idigbio_records_search_result.json")
+        .read_text()
+    )
     schema = process_json._generate_json_schema(data)
     pass
 
 
 @pytest_asyncio.fixture()
-def agent():
+def the_agent():
     return DataHandlerAgent()
 
 
-@pytest.mark.httpx_mock(should_mock=lambda request: request.url == "https://artifact.test")
+@pytest.mark.httpx_mock(
+    should_mock=lambda request: request.url == "https://artifact.test"
+)
 @pytest.mark.asyncio
-async def test_extract_first_record(agent, context, messages, httpx_mock):
+async def test_extract_first_record(the_agent, context, messages, httpx_mock):
     source_data = json.loads(
-        importlib.resources.files("resources").joinpath("idigbio_records_search_result.json").read_text()
+        importlib.resources.files("resources")
+        .joinpath("idigbio_records_search_result.json")
+        .read_text()
     )
     httpx_mock.add_response(url="https://artifact.test", json=source_data)
 
@@ -62,14 +63,14 @@ async def test_extract_first_record(agent, context, messages, httpx_mock):
         mimetype="application/json",
         description="A list of occurrence records",
         uris=["https://artifact.test"],
-        metadata={"source": "iDigBio"}
+        metadata={"source": "iDigBio"},
     )
 
-    await agent.run(
+    await the_agent.run(
         context,
         "Get the first record",
         "process_json",
-        process_json.Parameters(artifacts=[source_artifact])
+        agent.Parameters(artifacts=[source_artifact]),
     )
 
     artifact_message = next((m for m in messages if isinstance(m, ArtifactResponse)))
@@ -83,3 +84,41 @@ async def test_extract_first_record(agent, context, messages, httpx_mock):
         first_record = first_record[0]
 
     assert first_record == source_data["items"][0]
+
+
+def test_system_message():
+    artifact = Artifact(
+        local_id="#0000",
+        mimetype="application/json",
+        description="A list of occurrence records",
+        uris=["https://artifact.test"],
+        metadata={"source": "iDigBio"},
+    )
+
+    system_message = agent.make_system_message({"#0000": artifact, "#1111": artifact})
+
+    expected = """\
+You manipulate structured data using tools. You can access the following artifacts:
+
+- #0000: {"local_id":"#0000","description":"A list of occurrence records","mimetype":"application/json","uris":["https://artifact.test"],"metadata":{"source":"iDigBio"}}
+
+- #1111: {"local_id":"#0000","description":"A list of occurrence records","mimetype":"application/json","uris":["https://artifact.test"],"metadata":{"source":"iDigBio"}}
+
+If you are unable to fulfill the user's request using your available tools, abort and explain why.\
+"""
+
+    assert system_message == expected
+
+
+def test_system_message_with_no_artifacts():
+    system_message = agent.make_system_message({})
+
+    expected = """\
+You manipulate structured data using tools. You can access the following artifacts:
+
+NO AVAILABLE ARTIFACTS
+
+If you are unable to fulfill the user's request using your available tools, abort and explain why.\
+"""
+
+    assert system_message == expected
