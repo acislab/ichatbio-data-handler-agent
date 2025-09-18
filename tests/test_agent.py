@@ -72,9 +72,15 @@ def test_system_message():
     expected = """\
 You manipulate structured data using tools. You can access the following artifacts:
 
-- #0000: {"local_id":"#0000","description":"A list of occurrence records","mimetype":"application/json","uris":["https://artifact.test"],"metadata":{"source":"iDigBio"}}
+- local_id: #0000
+  description: A list of occurrence records
+  uris: ['https://artifact.test']
+  metadata: {'source': 'iDigBio'}
 
-- #1111: {"local_id":"#0000","description":"A list of occurrence records","mimetype":"application/json","uris":["https://artifact.test"],"metadata":{"source":"iDigBio"}}
+- local_id: #0000
+  description: A list of occurrence records
+  uris: ['https://artifact.test']
+  metadata: {'source': 'iDigBio'}
 
 If you are unable to fulfill the user's request using your available tools, abort and explain why.\
 """

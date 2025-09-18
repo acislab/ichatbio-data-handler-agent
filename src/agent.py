@@ -99,15 +99,19 @@ If you are unable to fulfill the user's request using your available tools, abor
 """.strip()
 
 
+def list_artifact(artifact: Artifact):
+    return f"""\
+- local_id: {artifact.local_id}
+  description: {artifact.description}
+  uris: {artifact.uris}
+  metadata: {artifact.metadata}\
+"""
+
+
 def make_system_message(artifacts: dict[str, Artifact]):
     return SYSTEM_MESSAGE.format(
         artifacts=(
-            "\n\n".join(
-                [
-                    f"- {id}: {artifact.model_dump_json()}"
-                    for id, artifact in artifacts.items()
-                ]
-            )
+            "\n\n".join([list_artifact(artifact) for artifact in artifacts.values()])
             if artifacts
             else "NO AVAILABLE ARTIFACTS"
         )
