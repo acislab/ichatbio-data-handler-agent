@@ -59,6 +59,16 @@ class DataHandlerAgent(IChatBioAgent):
         entrypoint: str,
         params: Parameters,  # It's safe to assume type Parameter because we only have one entrypoint
     ):
+        @tool(return_direct=True)  # This tool ends the agent loop
+        async def abort(reason: str):
+            """If you can't fulfill the user's request, abort instead and explain why."""
+            await context.reply(reason)
+
+        @tool(return_direct=True)  # This tool ends the agent loop
+        async def finish(message: str):
+            """Mark the user's request as successfully completed."""
+            await context.reply(message)
+
         artifacts = {artifact.local_id: artifact for artifact in params.artifacts}
         tools = [process_data.make_tool(request, context, artifacts), abort, finish]
 
@@ -102,18 +112,6 @@ def make_system_message(artifacts: dict[str, Artifact]):
             else "NO AVAILABLE ARTIFACTS"
         )
     )
-
-
-@tool(return_direct=True)  # This tool ends the agent loop
-async def abort(reason: str):
-    """If you can't fulfill the user's request, abort instead and explain why."""
-    pass
-
-
-@tool(return_direct=True)  # This tool ends the agent loop
-async def finish(message: str):
-    """Mark the user's request as successfully completed."""
-    pass
 
 
 def create_app() -> Starlette:
