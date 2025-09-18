@@ -59,11 +59,12 @@ def make_tool(request: str, context: ResponseContext, artifacts: dict[str, Artif
 
                 await process.log("Generating JQ query string")
                 try:
-                    jq_query, output_description, output_dict = (
+                    jq_query, output_description, output_dict, plan = (
                         await _generate_jq_query(
                             request, schema, source_content, source_artifact
                         )
                     )
+                    await process.log(f"*Plan: {plan}*")
                 except InstructorRetryException as e:
                     await process.log("Failed to generate JQ query string")
                     return
@@ -203,7 +204,12 @@ async def _generate_jq_query(
         logging.warning("Failed to generate JQ query string", e)
         raise
 
-    return result.jq_query_string, result.output_description, result.query_state.results
+    return (
+        result.jq_query_string,
+        result.output_description,
+        result.query_state.results,
+        result.plan,
+    )
 
 
 SYSTEM_PROMPT = """\
