@@ -6,11 +6,20 @@ import pytest_asyncio
 from ichatbio.agent_response import (
     ArtifactResponse,
 )
+from ichatbio.agent_response import DirectResponse
 from ichatbio.types import Artifact
 
 import agent
 from src.agent import DataHandlerAgent
 from src.tools import process_data
+
+OCCURRENCE_RECORDS = Artifact(
+    local_id="#0000",
+    mimetype="application/json",
+    description="A list of occurrence records",
+    uris=["https://artifact.test"],
+    metadata={"source": "iDigBio"},
+)
 
 
 @pytest_asyncio.fixture()
@@ -30,19 +39,11 @@ async def test_extract_first_record(data_handler, context, messages, httpx_mock)
     )
     httpx_mock.add_response(url="https://artifact.test", json=source_data)
 
-    source_artifact = Artifact(
-        local_id="#0000",
-        mimetype="application/json",
-        description="A list of occurrence records",
-        uris=["https://artifact.test"],
-        metadata={"source": "iDigBio"},
-    )
-
     await data_handler.run(
         context,
         "Get the first record",
-        "process_json",
-        agent.Parameters(artifacts=[source_artifact]),
+        "process_data",
+        agent.Parameters(artifacts=[OCCURRENCE_RECORDS]),
     )
 
     artifact_message = next((m for m in messages if isinstance(m, ArtifactResponse)))
@@ -58,16 +59,23 @@ async def test_extract_first_record(data_handler, context, messages, httpx_mock)
     assert first_record == source_data["items"][0]
 
 
-def test_system_message():
-    artifact = Artifact(
-        local_id="#0000",
-        mimetype="application/json",
-        description="A list of occurrence records",
-        uris=["https://artifact.test"],
-        metadata={"source": "iDigBio"},
+@pytest.mark.asyncio
+async def test_abort_without_appropriate_tool(data_handler, context, messages):
+    await data_handler.run(
+        context,
+        "Draw a giraffe",
+        "process_data",
+        agent.Parameters(artifacts=[OCCURRENCE_RECORDS]),
     )
 
-    system_message = agent.make_system_message({"#0000": artifact, "#1111": artifact})
+    assert len(messages) == 1
+    assert isinstance(messages[0], DirectResponse)
+
+
+def test_system_message():
+    system_message = agent.make_system_message(
+        {"#0000": OCCURRENCE_RECORDS, "#1111": OCCURRENCE_RECORDS}
+    )
 
     expected = """\
 You manipulate structured data using tools. You can access the following artifacts:
@@ -104,7 +112,7 @@ If you are unable to fulfill the user's request using your available tools, abor
 
 @pytest.mark.asyncio
 async def test__generate_jq_query():
-    jq_query, description, result = await process_data._generate_jq_query(
+    generation, result = await process_data._generate_and_run_jq_query(
         request="Get me the first bug",
         schema={"type": "string"},
         source_content=["cricket", "bumblebee"],

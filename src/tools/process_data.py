@@ -1,6 +1,6 @@
 import json
 import logging
-from typing import ClassVar
+from typing import Union
 
 import instructor
 import jq
@@ -13,7 +13,7 @@ from instructor import AsyncInstructor
 from instructor.exceptions import InstructorRetryException
 from langchain.tools import tool
 from openai import AsyncOpenAI
-from pydantic import Field, BaseModel, field_validator, create_model
+from pydantic import Field, BaseModel, field_validator
 
 from tools.tool import capture_messages
 
@@ -21,6 +21,26 @@ MAX_CHARACTERS_TO_SHOW_AI = 1024 * 10
 MAX_SOURCE_PREVIEW_SIZE = 500
 
 NONE = object()
+
+
+class JQQuery(BaseModel):
+    plan: str = Field(
+        description="A brief explanation of how you plan to query the data (what fields to use, any filters, transformations, etc.)"
+    )
+    jq_query_string: str = Field(
+        description="A JQ query string to process the json artifact.",
+    )
+    output_description: str = Field(
+        description="A concise characterization of the data that the query will retrieve",
+        examples=[
+            "List of collectors of Rattus rattus records in iDigBio",
+            "GBIF occurrence records modified in 2025",
+        ],
+    )
+
+
+class GiveUp(BaseModel):
+    reason: str
 
 
 def make_tool(request: str, context: ResponseContext, artifacts: dict[str, Artifact]):
@@ -59,36 +79,47 @@ def make_tool(request: str, context: ResponseContext, artifacts: dict[str, Artif
 
                 await process.log("Generating JQ query string")
                 try:
-                    jq_query, output_description, output_dict, plan = (
-                        await _generate_jq_query(
-                            request, schema, source_content, source_artifact
-                        )
+                    # jq_query, output_description, query_result, plan
+                    ai_action, generated_content = await _generate_and_run_jq_query(
+                        request, schema, source_content, source_artifact
                     )
-                    await process.log(f"*Plan: {plan}*")
                 except InstructorRetryException as e:
                     await process.log("Failed to generate JQ query string")
                     return
 
-                await process.log("Running JQ query", data={"query_string": jq_query})
-                output_as_text = json.dumps(output_dict)
-                output_as_bytes = output_as_text.encode("utf-8")
-                output_size_in_bytes = len(output_as_bytes)
+                match ai_action:
+                    case GiveUp(reason=reason):
+                        await process.log(
+                            f"Refused to generate a JQ query string: " + reason
+                        )
+                    case JQQuery(
+                        plan=plan,
+                        jq_query_string=jq_query_string,
+                        output_description=artifact_description,
+                    ):
+                        await process.log(f"*Plan: {plan}*")
 
-                await process.log(
-                    f"Query generated {output_size_in_bytes} bytes of data"
-                )
+                        await process.log(
+                            "Generated JQ query", data={"query_string": jq_query_string}
+                        )
+                        output_as_bytes = json.dumps(generated_content).encode("utf-8")
+                        output_size_in_bytes = len(output_as_bytes)
 
-                new_artifact = dict(
-                    mimetype="application/json",
-                    description=output_description,
-                    content=output_as_bytes,
-                    metadata={
-                        "source_artifact": source_artifact.local_id,
-                        "source_jq_query": jq_query,
-                    },
-                )
+                        await process.log(
+                            f"Executed JQ query generated {output_size_in_bytes} bytes of data"
+                        )
 
-                await process.create_artifact(**new_artifact)
+                        new_artifact = dict(
+                            mimetype="application/json",
+                            description=artifact_description,
+                            content=output_as_bytes,
+                            metadata={
+                                "source_artifact": source_artifact.local_id,
+                                "source_jq_query": jq_query_string,
+                            },
+                        )
+
+                        await process.create_artifact(**new_artifact)
 
             return messages
 
@@ -119,47 +150,40 @@ def _generate_json_schema(content: str) -> dict:
     return schema
 
 
-class QueryState(BaseModel):
-    source: dict | list
-    results: dict | list
+def make_response_model(source_content: dict | list, results_box: list):
+    class ValidatedJQQuery(JQQuery):
+        @field_validator("jq_query_string", mode="after")
+        @classmethod
+        def validate_jq_query_string(cls, query):
+            # If the LLM doesn't know how to construct an appropriate query, it shouldn't generate one
+            if not query:
+                return query
+
+            try:
+                compiled = jq.compile(query)
+            except ValueError as e:
+                raise ValueError(f"Failed to compile JQ query string {query}", e)
+
+            try:
+                result = compiled.input_value(source_content).all()
+            except ValueError as e:
+                raise ValueError(
+                    f"Failed to execute JQ query {query} on provided content", e
+                )
+
+            results_box[0] = result
+
+            return query
+
+    class ResponseModel(BaseModel):
+        response: Union[ValidatedJQQuery | GiveUp] = Field(
+            description="The action you are going to take. If the request can be fulfilled by running a JQ query on data matching the given schema, then you should generate a JQ query. Otherwise, if the request does not make sense with the provided data (e.g. if there are no relevant fields), you should give up and explain why."
+        )
+
+    return ResponseModel
 
 
-class JsonArtifactQuery(BaseModel):
-    query_state: ClassVar[QueryState]
-
-    plan: str = Field(
-        description="A brief explanation of how you plan to query the data (what fields to use, any filters, transformations, etc.)"
-    )
-    jq_query_string: str = Field(
-        description="A JQ query string to process the json artifact."
-    )
-    output_description: str = Field(
-        description="A concise characterization of the data that the query will retrieve",
-        examples=[
-            "List of collectors of Rattus rattus records in iDigBio",
-            "GBIF occurrence records modified in 2025",
-        ],
-    )
-
-    @field_validator("jq_query_string", mode="after")
-    @classmethod
-    def validate_jq_query_string(cls, query):
-        try:
-            compiled = jq.compile(query)
-        except ValueError as e:
-            raise ValueError(f"Failed to compile JQ query string {query}", e)
-
-        try:
-            cls.query_state.results = compiled.input_value(cls.query_state.source).all()
-        except ValueError as e:
-            raise ValueError(
-                f"Failed to execute JQ query {query} on provided content", e
-            )
-
-        return query
-
-
-async def _generate_jq_query(
+async def _generate_and_run_jq_query(
     request: str, schema: dict, source_content: dict | list, source_artifact: Artifact
 ) -> (str, str, dict):
     source_meta = source_artifact.model_dump_json()
@@ -184,12 +208,8 @@ async def _generate_jq_query(
         {"role": "user", "content": request},
     ]
 
-    response_model = create_model(
-        "Response",
-        __base__=JsonArtifactQuery,
-        # __validators__={"validate_jq_query_string": JsonArtifactQuery.validate_jq_query_string}
-    )
-    response_model.query_state = QueryState(source=source_content, results={})
+    results_box = [None]
+    response_model = make_response_model(source_content, results_box)
 
     try:
         client: AsyncInstructor = instructor.from_openai(AsyncOpenAI())
@@ -204,12 +224,9 @@ async def _generate_jq_query(
         logging.warning("Failed to generate JQ query string", e)
         raise
 
-    return (
-        result.jq_query_string,
-        result.output_description,
-        result.query_state.results,
-        result.plan,
-    )
+    response: JQQuery | GiveUp = result.response
+
+    return response, results_box[0]
 
 
 SYSTEM_PROMPT = """\
