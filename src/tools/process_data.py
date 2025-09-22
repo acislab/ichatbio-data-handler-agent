@@ -16,6 +16,7 @@ from openai import AsyncOpenAI
 from pydantic import Field, BaseModel, field_validator
 
 from tools.tool import capture_messages
+from util import contains_non_null_content
 
 MAX_CHARACTERS_TO_SHOW_AI = 1024 * 10
 MAX_SOURCE_PREVIEW_SIZE = 500
@@ -169,6 +170,11 @@ def make_response_model(source_content: dict | list, results_box: list):
             except ValueError as e:
                 raise ValueError(
                     f"Failed to execute JQ query {query} on provided content", e
+                )
+
+            if not contains_non_null_content(result):
+                raise ValueError(
+                    "Executing the JQ query on the input data returned an empty result. Does the query string match the schema of the input data?"
                 )
 
             results_box[0] = result
