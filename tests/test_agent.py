@@ -44,7 +44,7 @@ async def test_extract_first_record(data_handler, context, messages, httpx_mock)
         context,
         "Get the first record",
         "process_data",
-        agent.Parameters(artifacts=[OCCURRENCE_RECORDS]),
+        agent.EntrypointParameters(artifacts=[OCCURRENCE_RECORDS]),
     )
 
     artifact_message = next((m for m in messages if isinstance(m, ArtifactResponse)))
@@ -66,7 +66,7 @@ async def test_abort_without_appropriate_tool(data_handler, context, messages):
         context,
         "Draw a giraffe",
         "process_data",
-        agent.Parameters(artifacts=[OCCURRENCE_RECORDS]),
+        agent.EntrypointParameters(artifacts=[OCCURRENCE_RECORDS]),
     )
 
     assert len(messages) == 1
@@ -89,7 +89,7 @@ async def test_abort_after_failed_query(data_handler, context, messages, httpx_m
         context,
         'Extract the "dwc.moonphases" field from these records',
         "process_data",
-        agent.Parameters(artifacts=[OCCURRENCE_RECORDS]),
+        agent.EntrypointParameters(artifacts=[OCCURRENCE_RECORDS]),
     )
 
     assert len(messages) > 1
@@ -151,14 +151,3 @@ async def test__generate_jq_query():
     )
 
     assert result == ["cricket"]
-
-
-@pytest.mark.skip(reason="Just for reference")
-def test_schema_generation():
-    data = json.loads(
-        importlib.resources.files("resources")
-        .joinpath("idigbio_records_search_result.json")
-        .read_text()
-    )
-    schema = process_data._generate_json_schema(data)
-    pass

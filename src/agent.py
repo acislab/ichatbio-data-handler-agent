@@ -31,7 +31,7 @@ lightweight JSON processing tool.
 """
 
 
-class Parameters(BaseModel):
+class EntrypointParameters(BaseModel):
     artifacts: list[Artifact] = Field(
         description="The JSON data to process", min_length=1
     )
@@ -46,7 +46,9 @@ class DataHandlerAgent(IChatBioAgent):
             icon=None,
             entrypoints=[
                 AgentEntrypoint(
-                    id="process_data", description=DESCRIPTION, parameters=Parameters
+                    id="process_data",
+                    description=DESCRIPTION,
+                    parameters=EntrypointParameters,
                 )
             ],
         )
@@ -57,7 +59,7 @@ class DataHandlerAgent(IChatBioAgent):
         context: ResponseContext,
         request: str,
         entrypoint: str,
-        params: Parameters,  # It's safe to assume type Parameter because we only have one entrypoint
+        params: EntrypointParameters,  # It's safe to assume type Parameter because we only have one entrypoint
     ):
         @tool(return_direct=True)  # This tool ends the agent loop
         async def abort(reason: str):
@@ -96,7 +98,7 @@ You manipulate structured data using tools. You can access the following artifac
 {artifacts}
 
 If you are unable to fulfill the user's request using your available tools, abort and explain why.
-""".strip()
+"""
 
 
 def list_artifact(artifact: Artifact):
@@ -115,7 +117,7 @@ def make_system_message(artifacts: dict[str, Artifact]):
             if artifacts
             else "NO AVAILABLE ARTIFACTS"
         )
-    )
+    ).strip()
 
 
 def create_app() -> Starlette:
