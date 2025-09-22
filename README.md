@@ -1,6 +1,18 @@
 # ichatbio-data-handler-agent
 
-Transforms and integrates existing data.
+Transforms existing data artifacts into new artifacts. Uses LangChain to run a reason-then-act (ReAct) agent.
+
+```mermaid
+flowchart TD
+    A[start] -->|request, artifact IDs| B{Agent}
+    B --> |source artifact| C(Tools) --> |new artifact| B
+    B --> |reason| D(Abort) --> F[end]
+    B --> |report| E(Finish) --> F
+```
+
+Tools include:
+
+- Run a JQ query
 
 ## Quickstart
 
