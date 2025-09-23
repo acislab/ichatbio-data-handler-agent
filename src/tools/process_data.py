@@ -146,6 +146,11 @@ async def _generate_and_run_jq_query(
 
 
 def make_tool(request: str, context: ResponseContext, artifacts: dict[str, Artifact]):
+    """
+    The tool needs access to the `context` object in order to respond to iChatBio. To accomplish this, we define a new
+    tool for each request, using the `context` object in its definition.
+    """
+
     @tool("process_data")
     async def run(artifact_id: str):
         """
