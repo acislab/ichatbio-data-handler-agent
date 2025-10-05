@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/ichatbio-agent-example.iml" filepath="$PROJECT_DIR$/.idea/ichatbio-agent-example.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/ichatbio-data-handler-agent.iml" filepath="$PROJECT_DIR$/.idea/ichatbio-data-handler-agent.iml" />
     </modules>
   </component>
 </project>
