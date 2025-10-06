@@ -113,6 +113,7 @@ async def retrieve_artifact_content(
                 await process.log(
                     f"Failed to retrieve artifact content: {response.reason_phrase} ({response.status_code})"
                 )
+                raise ValueError()
         else:
             await process.log("Failed to find artifact content")
-            return
+            raise ValueError()

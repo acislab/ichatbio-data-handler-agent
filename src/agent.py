@@ -23,7 +23,7 @@ from pydantic import Field
 from starlette.applications import Starlette
 
 from artifact_registry import ArtifactRegistry
-from tools import process_data
+from tools import process_data, join_lists
 
 dotenv.load_dotenv()
 
@@ -93,7 +93,12 @@ class DataHandlerAgent(IChatBioAgent):
             await context.reply(message)
 
         artifacts = ArtifactRegistry(params.artifacts)
-        tools = [process_data.make_tool(request, context, artifacts), abort, finish]
+        tools = [
+            process_data.make_tool(request, context, artifacts),
+            join_lists.make_tool(request, context, artifacts),
+            abort,
+            finish,
+        ]
 
         # Build a LangChain agent graph
 
