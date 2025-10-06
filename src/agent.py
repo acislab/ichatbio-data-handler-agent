@@ -22,6 +22,7 @@ from pydantic import BaseModel
 from pydantic import Field
 from starlette.applications import Starlette
 
+from artifact_registry import ArtifactRegistry
 from tools import process_data
 
 dotenv.load_dotenv()
@@ -91,7 +92,7 @@ class DataHandlerAgent(IChatBioAgent):
             """Mark the user's request as successfully completed."""
             await context.reply(message)
 
-        artifacts = {artifact.local_id: artifact for artifact in params.artifacts}
+        artifacts = ArtifactRegistry(params.artifacts)
         tools = [process_data.make_tool(request, context, artifacts), abort, finish]
 
         # Build a LangChain agent graph
@@ -99,7 +100,7 @@ class DataHandlerAgent(IChatBioAgent):
         # TODO: make the LLM configurable
         llm = ChatOpenAI(model="gpt-4.1-mini", tool_choice="required")
 
-        system_message = make_system_message(artifacts)
+        system_message = make_system_message(params.artifacts)
         agent = langchain.agents.create_agent(
             model=llm,
             tools=tools,
@@ -135,10 +136,10 @@ def list_artifact(artifact: Artifact):
 """
 
 
-def make_system_message(artifacts: dict[str, Artifact]):
+def make_system_message(artifacts: list[Artifact]):
     return SYSTEM_MESSAGE.format(
         artifacts=(
-            "\n\n".join([list_artifact(artifact) for artifact in artifacts.values()])
+            "\n\n".join([list_artifact(artifact) for artifact in artifacts])
             if artifacts
             else "NO AVAILABLE ARTIFACTS"
         )

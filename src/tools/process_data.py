@@ -12,6 +12,7 @@ from langchain.tools import tool
 from openai import AsyncOpenAI
 from pydantic import Field, BaseModel, field_validator
 
+from artifact_registry import ArtifactRegistry
 from tools.util import JSON, retrieve_artifact_content
 from tools.util import capture_messages
 from tools.util import contains_non_null_content, extract_json_schema
@@ -144,7 +145,7 @@ async def _generate_and_run_jq_query(
     return response, results_box[0]
 
 
-def make_tool(request: str, context: ResponseContext, artifacts: dict[str, Artifact]):
+def make_tool(request: str, context: ResponseContext, artifacts: ArtifactRegistry):
     """
     The tool needs access to the `context` object in order to respond to iChatBio. To accomplish this, we define a new
     tool for each request, using the `context` object in its definition.
@@ -158,13 +159,12 @@ def make_tool(request: str, context: ResponseContext, artifacts: dict[str, Artif
         :param artifact_id: The source artifact
         :return: A new artifact
         """
+        source_artifact = artifacts.get(artifact_id)
         with capture_messages(context) as messages:
             async with context.begin_process("Processing data") as process:
                 process: IChatBioAgentProcess
 
                 await process.log("Retrieving artifact data")
-                source_artifact = artifacts.get(artifact_id)
-
                 source_content = await retrieve_artifact_content(
                     source_artifact, process
                 )
