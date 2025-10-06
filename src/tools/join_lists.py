@@ -167,37 +167,42 @@ def make_tool(request: str, context: ResponseContext, artifacts: ArtifactRegistr
         artifact_one, artifact_two = artifacts.get(artifact_one_id, artifact_two_id)
 
         with capture_messages(context) as messages:
-            async with context.begin_process("Processing data") as process:
-                process: IChatBioAgentProcess
-
-                list_one = await retrieve_artifact_content(artifact_one, process)
-                list_two = await retrieve_artifact_content(artifact_two, process)
-
-                await process.log("Inferring the JSON data's schema")
-                for artifact, content in (
-                    (artifact_one, list_one),
-                    (artifact_two, list_two),
-                ):
-                    if not (type(content) is list) or not all(
-                        filter(is_record, content)
-                    ):
-                        await process.log(
-                            f"Error: artifact {artifact.local_id} is not a list of records"
-                        )
-                        return
-
-                new_list = [
-                    record_one | record_two
-                    for record_one, record_two in zip(list_one, list_two)
-                ]
-
-                await process.create_artifact(
-                    mimetype="application/json",
-                    description=f"Joined list of records from artifacts {artifact_one_id} and {artifact_two_id}",
-                    content=json.dumps(new_list).encode("utf-8"),
-                    metadata={"source_artifacts": [artifact_one_id, artifact_two_id]},
-                )
-
-            return messages  # Pass the iChatBio messages back to the LangChain agent as context
+            await join_lists(artifact_one, context, artifact_two)
+        return messages  # Pass the iChatBio messages back to the LangChain agent as context
 
     return run
+
+
+async def join_lists(
+    artifact_one: Artifact, context: ResponseContext, artifact_two: Artifact
+):
+    async with context.begin_process("Processing data") as process:
+        process: IChatBioAgentProcess
+
+        list_one = await retrieve_artifact_content(artifact_one, process)
+        list_two = await retrieve_artifact_content(artifact_two, process)
+
+        await process.log("Inferring the JSON data's schema")
+        for artifact, content in (
+            (artifact_one, list_one),
+            (artifact_two, list_two),
+        ):
+            if not (type(content) is list) or not all(filter(is_record, content)):
+                await process.log(
+                    f"Error: artifact {artifact.local_id} is not a list of records"
+                )
+                return
+
+        new_list = [
+            record_one | record_two
+            for record_one, record_two in zip(list_one, list_two)
+        ]
+
+        await process.create_artifact(
+            mimetype="application/json",
+            description=f"Joined list of records from artifacts {artifact_one.local_id} and {artifact_two.local_id}",
+            content=json.dumps(new_list).encode("utf-8"),
+            metadata={
+                "source_artifacts": [artifact_one.local_id, artifact_two.local_id]
+            },
+        )

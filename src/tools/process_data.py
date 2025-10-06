@@ -161,60 +161,61 @@ def make_tool(request: str, context: ResponseContext, artifacts: ArtifactRegistr
         """
         source_artifact = artifacts.get(artifact_id)
         with capture_messages(context) as messages:
-            async with context.begin_process("Processing data") as process:
-                process: IChatBioAgentProcess
-
-                await process.log("Retrieving artifact data")
-                source_content = await retrieve_artifact_content(
-                    source_artifact, process
-                )
-                if source_content is None:
-                    return
-
-                await process.log("Inferring the JSON data's schema")
-                schema = extract_json_schema(source_content)
-
-                await process.log("Generating JQ query string")
-                try:
-                    generation, query_result = await _generate_and_run_jq_query(
-                        request, schema, source_content, source_artifact
-                    )
-                except InstructorRetryException:
-                    await process.log("Failed to generate JQ query string")
-                    return
-
-                match generation:
-                    case GiveUp(reason=reason):
-                        await process.log(
-                            f"Refused to generate a JQ query string: " + reason
-                        )
-                    case JQQuery(
-                        plan=plan,
-                        jq_query_string=jq_query_string,
-                        output_description=artifact_description,
-                    ):
-                        await process.log(f"*Plan: {plan}*")
-
-                        await process.log(
-                            "Generated JQ query", data={"query_string": jq_query_string}
-                        )
-                        output_as_bytes = json.dumps(query_result).encode("utf-8")
-                        output_size_in_bytes = len(output_as_bytes)
-
-                        await process.log(
-                            f"Executed JQ query generated {output_size_in_bytes} bytes of data"
-                        )
-
-                        await process.create_artifact(
-                            mimetype="application/json",
-                            description=artifact_description,
-                            content=output_as_bytes,
-                            metadata={
-                                "source_artifact": source_artifact.local_id,
-                                "source_jq_query": jq_query_string,
-                            },
-                        )
-
+            await process_data(context, request, source_artifact)
             return messages  # Pass the iChatBio messages back to the LangChain agent as context
 
     return run
+
+
+async def process_data(
+    context: ResponseContext, request: str, source_artifact: Artifact
+):
+    async with context.begin_process("Processing data") as process:
+        process: IChatBioAgentProcess
+
+        await process.log("Retrieving artifact data")
+        source_content = await retrieve_artifact_content(source_artifact, process)
+        if source_content is None:
+            return
+
+        await process.log("Inferring the JSON data's schema")
+        schema = extract_json_schema(source_content)
+
+        await process.log("Generating JQ query string")
+        try:
+            generation, query_result = await _generate_and_run_jq_query(
+                request, schema, source_content, source_artifact
+            )
+        except InstructorRetryException:
+            await process.log("Failed to generate JQ query string")
+            return
+
+        match generation:
+            case GiveUp(reason=reason):
+                await process.log(f"Refused to generate a JQ query string: " + reason)
+            case JQQuery(
+                plan=plan,
+                jq_query_string=jq_query_string,
+                output_description=artifact_description,
+            ):
+                await process.log(f"*Plan: {plan}*")
+
+                await process.log(
+                    "Generated JQ query", data={"query_string": jq_query_string}
+                )
+                output_as_bytes = json.dumps(query_result).encode("utf-8")
+                output_size_in_bytes = len(output_as_bytes)
+
+                await process.log(
+                    f"Executed JQ query generated {output_size_in_bytes} bytes of data"
+                )
+
+                await process.create_artifact(
+                    mimetype="application/json",
+                    description=artifact_description,
+                    content=output_as_bytes,
+                    metadata={
+                        "source_artifact": source_artifact.local_id,
+                        "source_jq_query": jq_query_string,
+                    },
+                )

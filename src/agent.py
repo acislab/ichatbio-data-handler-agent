@@ -8,7 +8,7 @@ successfully fulfilled the user's request ("finish") or that it isn't able to do
 See the flowchart in README.md for a visualization of the agent.
 """
 
-from typing import override
+from typing import override, Iterable
 
 import dotenv
 import langchain.agents
@@ -141,7 +141,7 @@ def list_artifact(artifact: Artifact):
 """
 
 
-def make_system_message(artifacts: list[Artifact]):
+def make_system_message(artifacts: Iterable[Artifact]):
     return SYSTEM_MESSAGE.format(
         artifacts=(
             "\n\n".join([list_artifact(artifact) for artifact in artifacts])
