@@ -4,7 +4,6 @@ from typing import Union
 
 import instructor
 import jq
-from httpx import AsyncClient
 from ichatbio.agent_response import IChatBioAgentProcess, ResponseContext
 from ichatbio.types import Artifact
 from instructor import AsyncInstructor
@@ -13,7 +12,7 @@ from langchain.tools import tool
 from openai import AsyncOpenAI
 from pydantic import Field, BaseModel, field_validator
 
-from tools.util import JSON
+from tools.util import JSON, retrieve_artifact_content
 from tools.util import capture_messages
 from tools.util import contains_non_null_content, extract_json_schema
 
@@ -166,18 +165,11 @@ def make_tool(request: str, context: ResponseContext, artifacts: dict[str, Artif
                 await process.log("Retrieving artifact data")
                 source_artifact = artifacts.get(artifact_id)
 
-                async with AsyncClient(follow_redirects=True) as http:
-                    for url in source_artifact.get_urls():
-                        await process.log(
-                            f"Retrieving artifact {source_artifact.local_id} content from {url}"
-                        )
-                        response = await http.get(url)
-                        if response.is_success:
-                            source_content = response.json()  # TODO: catch exception?
-                            break
-                    else:
-                        await process.log("Failed to retrieve data for processing")
-                        return
+                source_content = await retrieve_artifact_content(
+                    source_artifact, process
+                )
+                if source_content is None:
+                    return
 
                 await process.log("Inferring the JSON data's schema")
                 schema = extract_json_schema(source_content)
@@ -187,7 +179,7 @@ def make_tool(request: str, context: ResponseContext, artifacts: dict[str, Artif
                     generation, query_result = await _generate_and_run_jq_query(
                         request, schema, source_content, source_artifact
                     )
-                except InstructorRetryException as e:
+                except InstructorRetryException:
                     await process.log("Failed to generate JQ query string")
                     return
 
