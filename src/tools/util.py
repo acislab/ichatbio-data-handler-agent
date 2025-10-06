@@ -1,10 +1,12 @@
 import types
 from contextlib import contextmanager
 
+import httpx
 from genson import SchemaBuilder
 from genson.schema.strategies import Object
-from ichatbio.agent_response import ArtifactResponse
+from ichatbio.agent_response import ArtifactResponse, IChatBioAgentProcess
 from ichatbio.agent_response import ResponseContext
+from ichatbio.types import Artifact
 
 JSON = dict | list | str | int | float | None
 """JSON-serializable primitive types that work with functions like json.dumps(). Note that dicts and lists may contain
@@ -94,3 +96,23 @@ def extract_json_schema(content: str) -> dict:
     builder.add_object(content)
     schema = builder.to_schema()
     return schema
+
+
+async def retrieve_artifact_content(
+    artifact: Artifact, process: IChatBioAgentProcess
+) -> JSON:
+    async with httpx.AsyncClient(follow_redirects=True) as internet:
+        for url in artifact.get_urls():
+            await process.log(
+                f"Retrieving artifact {artifact.local_id} content from {url}"
+            )
+            response = await internet.get(url)
+            if response.is_success:
+                return response.json()  # TODO: catch exception?
+            else:
+                await process.log(
+                    f"Failed to retrieve artifact content: {response.reason_phrase} ({response.status_code})"
+                )
+        else:
+            await process.log("Failed to find artifact content")
+            return

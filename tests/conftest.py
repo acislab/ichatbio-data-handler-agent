@@ -1,5 +1,7 @@
-import pytest
+import importlib
+from importlib.resources.abc import Traversable
 
+import pytest
 from ichatbio.agent_response import ResponseChannel, ResponseContext, ResponseMessage
 
 
@@ -45,3 +47,10 @@ def context(messages) -> ResponseContext:
     within a process block are assigned the context_id ``"617727d1-4ce8-4902-884c-db786854b51c"``.
     """
     return ResponseContext(InMemoryResponseChannel(messages), TEST_CONTEXT_ID)
+
+
+def resource(*path, text=True) -> str | Traversable:
+    file = importlib.resources.files("resources").joinpath(*path)
+    if text:
+        return file.read_text()
+    return file

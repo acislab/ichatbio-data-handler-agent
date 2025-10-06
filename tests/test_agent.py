@@ -1,4 +1,3 @@
-import importlib.resources
 import json
 
 import ichatbio.agent_response
@@ -11,6 +10,7 @@ from ichatbio.agent_response import DirectResponse
 from ichatbio.types import Artifact
 
 import agent
+from conftest import resource
 from src.agent import DataHandlerAgent
 from src.tools import process_data
 
@@ -33,11 +33,7 @@ def data_handler():
 )
 @pytest.mark.asyncio
 async def test_extract_first_record(data_handler, context, messages, httpx_mock):
-    source_data = json.loads(
-        importlib.resources.files("resources")
-        .joinpath("idigbio_records_search_result.json")
-        .read_text()
-    )
+    source_data = json.loads(resource("idigbio_records_search_result.json"))
     httpx_mock.add_response(url="https://artifact.test", json=source_data)
 
     await data_handler.run(
@@ -78,11 +74,7 @@ async def test_abort_without_appropriate_tool(data_handler, context, messages):
 )
 @pytest.mark.asyncio
 async def test_abort_after_failed_query(data_handler, context, messages, httpx_mock):
-    source_data = json.loads(
-        importlib.resources.files("resources")
-        .joinpath("idigbio_records_search_result.json")
-        .read_text()
-    )
+    source_data = json.loads(resource("idigbio_records_search_result.json"))
     httpx_mock.add_response(url="https://artifact.test", json=source_data)
 
     await data_handler.run(
