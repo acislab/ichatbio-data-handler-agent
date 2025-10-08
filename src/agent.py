@@ -23,7 +23,7 @@ from pydantic import Field
 from starlette.applications import Starlette
 
 from artifact_registry import ArtifactRegistry
-from tools import process_data, join_lists
+from tools import process_data, join_lists, concat_lists
 
 dotenv.load_dotenv()
 
@@ -33,6 +33,8 @@ Reads and processes JSON artifacts. This agent can do the following:
 - Change field names
 - Display items in a list
 - Filter items in a list
+- Join records across lists of the same length
+- Concatenate lists
 - etc.
 
 To use this agent, provide an artifact local_id and describe how the json data should be filtered or transformed.
@@ -96,6 +98,7 @@ class DataHandlerAgent(IChatBioAgent):
         tools = [
             process_data.make_tool(request, context, artifacts),
             join_lists.make_tool(request, context, artifacts),
+            concat_lists.make_tool(request, context, artifacts),
             abort,
             finish,
         ]
