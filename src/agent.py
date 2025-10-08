@@ -109,7 +109,7 @@ class DataHandlerAgent(IChatBioAgent):
         agent = langchain.agents.create_agent(
             model=llm,
             tools=tools,
-            prompt=system_message,
+            system_prompt=system_message,
         )
 
         # Run the graph
