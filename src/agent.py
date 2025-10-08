@@ -103,7 +103,7 @@ class DataHandlerAgent(IChatBioAgent):
         # Build a LangChain agent graph
 
         # TODO: make the LLM configurable
-        llm = ChatOpenAI(model="gpt-4.1-mini", tool_choice="required")
+        llm = ChatOpenAI(model="gpt-4.1", tool_choice="required")
 
         system_message = make_system_message(params.artifacts)
         agent = langchain.agents.create_agent(
