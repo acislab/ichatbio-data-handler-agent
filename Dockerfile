@@ -22,7 +22,7 @@ ENV VIRTUAL_ENV=/home/app/venv
 ENV PATH="$VIRTUAL_ENV/bin:/usr/local/bin:$PATH"
 
 RUN python3 -m venv $VIRTUAL_ENV
-RUN uv pip install --no-cache --python $VIRTUAL_ENV/bin/python -e .
+RUN uv pip install --pre --no-cache --python $VIRTUAL_ENV/bin/python -e .
 
 EXPOSE 9999
 
