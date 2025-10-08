@@ -58,7 +58,7 @@ def _make_validating_response_model(source_content: JSON, results_box: list):
                 raise ValueError(f"Failed to compile JQ query string {query}", e)
 
             try:
-                result = compiled.input_value(source_content).all()
+                result = compiled.input_value(source_content).first()
             except ValueError as e:
                 raise ValueError(
                     f"Failed to execute JQ query {query} on provided content", e

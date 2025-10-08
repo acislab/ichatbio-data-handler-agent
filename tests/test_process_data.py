@@ -66,3 +66,23 @@ async def test_abort_after_failed_query(context, messages, httpx_mock):
     assert len(messages) > 1
     assert isinstance(messages[0], ichatbio.agent_response.ProcessBeginResponse)
     assert not any([isinstance(message, ArtifactResponse) for message in messages])
+
+
+@pytest.mark.httpx_mock(
+    should_mock=lambda request: request.url == "https://artifact.test"
+)
+@pytest.mark.asyncio
+async def test_extract_a_list(context, messages, httpx_mock):
+    source_data = json.loads(resource("idigbio_records_search_result.json"))
+    httpx_mock.add_response(url="https://artifact.test", json=source_data)
+
+    # TODO: mock OpenAI
+
+    await process_data.process_data(context, "Extract records list", OCCURRENCE_RECORDS)
+
+    artifact_message = next((m for m in messages if isinstance(m, ArtifactResponse)))
+    assert artifact_message
+
+    records = json.loads(artifact_message.content.decode("utf-8"))
+
+    assert records == source_data["items"]
