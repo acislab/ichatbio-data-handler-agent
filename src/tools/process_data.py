@@ -152,7 +152,7 @@ def make_tool(request: str, context: ResponseContext, artifacts: ArtifactRegistr
     """
 
     @tool("process_data")
-    async def run(artifact_id: str):
+    async def run(artifact_id: artifacts.model):
         """
         Filter or transform artifact data to generate a new artifact.
 

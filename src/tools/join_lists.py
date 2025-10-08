@@ -20,7 +20,10 @@ def make_tool(request: str, context: ResponseContext, artifacts: ArtifactRegistr
     """
 
     @tool("join_lists")
-    async def run(artifact_one_id: str, artifact_two_id: str):
+    async def run(
+        artifact_one_id: artifacts.model,
+        artifact_two_id: artifacts.model,
+    ):
         """
         Joins two lists of equal length, joining items by index to produce a new list of the same length.
 
