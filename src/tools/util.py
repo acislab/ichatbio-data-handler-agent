@@ -1,3 +1,4 @@
+import traceback
 import types
 from contextlib import contextmanager
 
@@ -98,22 +99,31 @@ def extract_json_schema(content: str) -> dict:
     return schema
 
 
+def format_exception(e) -> str:
+    return "; ".join(traceback.format_exception(e, limit=0))
+
+
 async def retrieve_artifact_content(
     artifact: Artifact, process: IChatBioAgentProcess
 ) -> JSON:
-    async with httpx.AsyncClient(follow_redirects=True) as internet:
-        for url in artifact.get_urls():
-            await process.log(
-                f"Retrieving artifact {artifact.local_id} content from {url}"
-            )
-            response = await internet.get(url)
-            if response.is_success:
-                return response.json()  # TODO: catch exception?
+    try:
+        async with httpx.AsyncClient(follow_redirects=True, timeout=30) as internet:
+            for url in artifact.get_urls():
+                await process.log(
+                    f"Retrieving artifact {artifact.local_id} content from {url}"
+                )
+                response = await internet.get(url)
+                if response.is_success:
+                    return response.json()  # TODO: catch exception?
+                else:
+                    await process.log(
+                        f"Error downloading artifact content: {response.reason_phrase} ({response.status_code})"
+                    )
+                    raise ValueError()
             else:
                 await process.log(
-                    f"Failed to retrieve artifact content: {response.reason_phrase} ({response.status_code})"
+                    "Failed to find where the artifact content is located"
                 )
                 raise ValueError()
-        else:
-            await process.log("Failed to find artifact content")
-            raise ValueError()
+    except httpx.HTTPError as e:
+        await process.log(f"Error retrieving artifact content: {format_exception(e)}")
