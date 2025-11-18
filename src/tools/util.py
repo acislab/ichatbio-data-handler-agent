@@ -109,6 +109,14 @@ async def retrieve_artifact_content(
     try:
         async with httpx.AsyncClient(follow_redirects=True, timeout=30) as internet:
             for url in artifact.get_urls():
+                # Rewrite URL if needed (for Docker networking)
+                rewritten_url = _rewrite_localhost_url(url)
+                if rewritten_url != url:
+                    await process.log(
+                        f"Rewriting URL for Docker networking: {url} -> {rewritten_url}"
+                    )
+                    url = rewritten_url
+                
                 await process.log(
                     f"Retrieving artifact {artifact.local_id} content from {url}"
                 )
@@ -127,3 +135,43 @@ async def retrieve_artifact_content(
                 raise ValueError()
     except httpx.HTTPError as e:
         await process.log(f"Error retrieving artifact content: {format_exception(e)}")
+
+
+def _rewrite_localhost_url(url: str) -> str:
+    """Rewrite localhost URLs to host.docker.internal for Docker compatibility."""
+    return url.replace("localhost:", "host.docker.internal:").replace("127.0.0.1:", "host.docker.internal:")
+
+
+async def retrieve_artifact_text(
+    artifact: Artifact, process: IChatBioAgentProcess
+) -> str | None:
+    """Retrieves artifact content as raw text (for CSV and text formats)."""
+    try:
+        async with httpx.AsyncClient(follow_redirects=True, timeout=30) as internet:
+            for url in artifact.get_urls():
+                # Rewrite URL if needed (for Docker networking)
+                rewritten_url = _rewrite_localhost_url(url)
+                if rewritten_url != url:
+                    await process.log(
+                        f"Rewriting URL for Docker networking: {url} -> {rewritten_url}"
+                    )
+                    url = rewritten_url
+                
+                await process.log(
+                    f"Retrieving artifact {artifact.local_id} content from {url}"
+                )
+                response = await internet.get(url)
+                if response.is_success:
+                    return response.text
+                else:
+                    await process.log(
+                        f"Error downloading artifact content: {response.reason_phrase} ({response.status_code})"
+                    )
+            else:
+                await process.log(
+                    "Failed to find where the artifact content is located"
+                )
+    except httpx.HTTPError as e:
+        await process.log(f"Error retrieving artifact content: {format_exception(e)}")
+    
+    return None

@@ -23,7 +23,7 @@ from pydantic import Field
 from starlette.applications import Starlette
 
 from artifact_registry import ArtifactRegistry
-from tools import process_data, join_lists, concat_lists
+from tools import process_data, join_lists, concat_lists, convert_json_csv
 
 dotenv.load_dotenv()
 
@@ -35,9 +35,10 @@ Reads and processes JSON artifacts. This agent can do the following:
 - Filter items in a list
 - Join records across lists of the same length
 - Concatenate lists
+- Convert between JSON and CSV formats
 - etc.
 
-To use this agent, provide an artifact local_id and describe how the json data should be filtered or transformed.
+To use this agent, provide an artifact local_id and describe how the json data should be filtered, transformed, or converted.
 
 This tool works for both JSON objects and JSON lists. Under the hood, this agent uses JQ (https://jqlang.org/), a
 lightweight JSON processing tool.
@@ -99,6 +100,7 @@ class DataHandlerAgent(IChatBioAgent):
             process_data.make_tool(request, context, artifacts),
             join_lists.make_tool(request, context, artifacts),
             concat_lists.make_tool(request, context, artifacts),
+            convert_json_csv.make_tool(request, context, artifacts),
             abort,
             finish,
         ]
