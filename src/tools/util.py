@@ -46,8 +46,8 @@ def capture_messages(context: ResponseContext):
     channel = context._channel
     old_submit = channel.submit
 
-    async def submit_and_buffer(self, message, context_id: str):
-        await old_submit(message, context_id)
+    async def submit_and_buffer(self, message):
+        await old_submit(message)
         match message:
             case ArtifactResponse() as artifact:
                 # Remove "content" from artifact messages, the AI doesn't need to see it:

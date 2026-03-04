@@ -16,22 +16,20 @@ class InMemoryResponseChannel(ResponseChannel):
         channel = InMemoryResponseChannel(messages)
         context = ResponseContext(channel)
 
-        # `messages` starts empty
+        # `messages` is empty
         agent = HelloWorldAgent()
         await agent.run(context, "Hi", "hello", None)
-        # `messages` should now be populated
 
-        assert messages[1].text == "Hello world!"
+        # `messages` should now be populated
+        assert messages[0].text == "Hello world!"
     """
 
     def __init__(self, message_buffer: list):
+        super().__init__("testid")
         self.message_buffer = message_buffer
 
-    async def submit(self, message: ResponseMessage, context_id: str):
+    async def submit(self, message: ResponseMessage):
         self.message_buffer.append(message)
-
-
-TEST_CONTEXT_ID = "617727d1-4ce8-4902-884c-db786854b51c"
 
 
 @pytest.fixture(scope="function")
@@ -46,7 +44,7 @@ def context(messages) -> ResponseContext:
     A special test context which gathers agent response messages as they are generated. Messages that do not occur
     within a process block are assigned the context_id ``"617727d1-4ce8-4902-884c-db786854b51c"``.
     """
-    return ResponseContext(InMemoryResponseChannel(messages), TEST_CONTEXT_ID)
+    return ResponseContext(InMemoryResponseChannel(messages))
 
 
 def resource(*path, text=True) -> str | Traversable:
