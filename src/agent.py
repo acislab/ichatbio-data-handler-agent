@@ -7,7 +7,7 @@ successfully fulfilled the user's request ("finish") or that it isn't able to do
 
 See the flowchart in README.md for a visualization of the agent.
 """
-
+import os
 from typing import override, Iterable
 
 import dotenv
@@ -57,7 +57,9 @@ class DataHandlerAgent(IChatBioAgent):
         return AgentCard(
             name="Data Handler",
             description=DESCRIPTION,
-            icon=None,
+            icon="https://raw.githubusercontent.com/acislab/ichatbio/refs/heads/main/icon.svg",
+            documentation_url="https://github.com/acislab/ichatbio-data-handler-agent",
+            url=os.getenv("URL", None),
             entrypoints=[
                 AgentEntrypoint(
                     id="process_data",
@@ -69,11 +71,11 @@ class DataHandlerAgent(IChatBioAgent):
 
     @override
     async def run(
-        self,
-        context: ResponseContext,
-        request: str,
-        entrypoint: str,
-        params: EntrypointParameters,  # It's safe to assume type Parameter because we only have one entrypoint
+            self,
+            context: ResponseContext,
+            request: str,
+            entrypoint: str,
+            params: EntrypointParameters,  # It's safe to assume type Parameter because we only have one entrypoint
     ):
         """
         Running this agent first builds a LangChain agent graph (a loop that alternates between decision-making and

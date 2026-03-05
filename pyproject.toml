@@ -3,7 +3,7 @@ name = "ichatbio-data-handler-agent"
 version = "1"
 requires-python = ">=3.12"
 dependencies = [
-    "ichatbio-sdk~=0.2.5",
+    "ichatbio-sdk~=0.2.6",
     "openai~=1.109.1",
     "pydantic>=2.11.4",
     "instructor~=1.11.3",
@@ -16,7 +16,8 @@ dependencies = [
     "jq~=1.10.0",
     "pytest_httpx~=0.35.0",
     "langchain~=1.0.0a12",
-    "langchain_openai~=1.0.0a4"
+    "langchain_openai~=1.0.0a4",
+    "ruff>=0.15.4",
 ]
 
 [tool.pytest.ini_options]
