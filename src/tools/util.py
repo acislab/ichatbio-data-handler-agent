@@ -14,7 +14,6 @@ from ichatbio.agent_response import (
 )
 from ichatbio.types import Artifact
 
-from artifact_registry import ArtifactRegistry
 from context import current_context
 
 JSON = dict | list | str | int | float | None
@@ -43,7 +42,11 @@ def context_tool(func):
     Turns the function into a langchain tool that emits iChatBio messages.
     """
 
-    @langchain.tools.tool(func.__name__, description=func.__doc__)
+    @langchain.tools.tool(
+        func.__name__,
+        description=func.__doc__,
+        return_direct=True,  # TODO: this ends the agent loop immediately. Remove this when the agent can use its own artifacts.
+    )
     @functools.wraps(func)  # Preserves function signature
     async def wrapper(*args, **kwargs):
         context = current_context.get()
