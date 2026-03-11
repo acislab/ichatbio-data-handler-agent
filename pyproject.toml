@@ -18,7 +18,8 @@ dependencies = [
     "langchain>=1.2.10",
     "langchain_openai>=1.1.10",
     "ruff>=0.15.4",
-    "contextvars>=2.4"
+    "contextvars>=2.4",
+    "black>=26.3.0",
 ]
 
 [tool.pytest.ini_options]

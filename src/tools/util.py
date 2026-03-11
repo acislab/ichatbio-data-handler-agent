@@ -39,6 +39,10 @@ def contains_non_null_content(content: JSON):
 
 
 def context_tool(func):
+    """
+    Turns the function into a langchain tool that emits iChatBio messages.
+    """
+
     @langchain.tools.tool(func.__name__, description=func.__doc__)
     @functools.wraps(func)  # Preserves function signature
     async def wrapper(*args, **kwargs):

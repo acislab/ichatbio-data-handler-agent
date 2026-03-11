@@ -4,15 +4,13 @@ from typing import Union
 
 import instructor
 import jq
-from ichatbio.agent_response import IChatBioAgentProcess, ResponseContext
+from ichatbio.agent_response import IChatBioAgentProcess
 from ichatbio.types import Artifact
 from instructor import AsyncInstructor
-from instructor.exceptions import InstructorRetryException
-from langchain.tools import tool
+from instructor.core import InstructorRetryException
 from openai import AsyncOpenAI
 from pydantic import BaseModel, Field, field_validator
 
-from artifact_registry import ArtifactRegistry
 from context import (
     ValidatedArtifactID,
     current_artifacts,
@@ -21,7 +19,6 @@ from context import (
 )
 from tools.util import (
     JSON,
-    capture_messages,
     contains_non_null_content,
     context_tool,
     extract_json_schema,
@@ -161,42 +158,19 @@ async def _generate_and_run_jq_query(
     return response, results_box[0]
 
 
-def make_tool(request: str, context: ResponseContext, artifacts: ArtifactRegistry):
-    """
-    The tool needs access to the `context` object in order to respond to iChatBio. To accomplish this, we define a new
-    tool for each request, using the `context` object in its definition.
-    """
-
-    @tool("process_data")
-    async def run(artifact_id: artifacts.model):
-        """
-        Filter or transform artifact data to generate a new artifact.
-
-        :param artifact_id: The source artifact
-        :return: A new artifact
-        """
-        source_artifact = artifacts.get(artifact_id)
-        with capture_messages(context) as messages:
-            await process_data(context, request, source_artifact)
-            return messages  # Pass the iChatBio messages back to the LangChain agent as context
-
-    return run
-
-
 @context_tool
 async def process_data(artifact_id: ValidatedArtifactID):
     """
     Filter or transform artifact data to generate a new artifact.
 
     :param artifact_id: The source artifact
-    :return: A new artifact
     """
 
     context = current_context.get()
     request = current_request.get()
-    artifact_registry = current_artifacts.get()
+    artifacts = current_artifacts.get()
 
-    source_artifact = artifact_registry.get(artifact_id)
+    source_artifact = artifacts.get(artifact_id)
 
     async with context.begin_process("Processing data") as process:
         process: IChatBioAgentProcess

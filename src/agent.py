@@ -8,7 +8,6 @@ successfully fulfilled the user's request ("finish") or that it isn't able to do
 See the flowchart in README.md for a visualization of the agent.
 """
 
-import contextvars
 import os
 from typing import Iterable, override
 
@@ -25,7 +24,9 @@ from starlette.applications import Starlette
 
 from artifact_registry import ArtifactRegistry
 from context import current_artifacts, current_context, current_request
-from tools import concat_lists, convert_json_csv, join_lists
+from tools.concat_lists import concat_lists
+from tools.convert_json_csv import convert_json_csv
+from tools.join_lists import join_lists
 from tools.process_data import process_data
 
 dotenv.load_dotenv()
@@ -108,9 +109,9 @@ class DataHandlerAgent(IChatBioAgent):
 
         tools = [
             process_data,
-            join_lists.make_tool(request, context, artifacts),
-            concat_lists.make_tool(request, context, artifacts),
-            convert_json_csv.make_tool(request, context, artifacts),
+            join_lists,
+            concat_lists,
+            convert_json_csv,
             abort,
             finish,
         ]
