@@ -10,12 +10,23 @@ from instructor import AsyncInstructor
 from instructor.exceptions import InstructorRetryException
 from langchain.tools import tool
 from openai import AsyncOpenAI
-from pydantic import Field, BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 from artifact_registry import ArtifactRegistry
-from tools.util import JSON, retrieve_artifact_content
-from tools.util import capture_messages
-from tools.util import contains_non_null_content, extract_json_schema
+from context import (
+    ValidatedArtifactID,
+    current_artifacts,
+    current_context,
+    current_request,
+)
+from tools.util import (
+    JSON,
+    capture_messages,
+    contains_non_null_content,
+    context_tool,
+    extract_json_schema,
+    retrieve_artifact_content,
+)
 
 MAX_CHARACTERS_TO_SHOW_AI = 1024 * 10
 MAX_SOURCE_PREVIEW_SIZE = 500
@@ -172,9 +183,21 @@ def make_tool(request: str, context: ResponseContext, artifacts: ArtifactRegistr
     return run
 
 
-async def process_data(
-    context: ResponseContext, request: str, source_artifact: Artifact
-):
+@context_tool
+async def process_data(artifact_id: ValidatedArtifactID):
+    """
+    Filter or transform artifact data to generate a new artifact.
+
+    :param artifact_id: The source artifact
+    :return: A new artifact
+    """
+
+    context = current_context.get()
+    request = current_request.get()
+    artifact_registry = current_artifacts.get()
+
+    source_artifact = artifact_registry.get(artifact_id)
+
     async with context.begin_process("Processing data") as process:
         process: IChatBioAgentProcess
 

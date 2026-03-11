@@ -3,12 +3,15 @@ import json
 import dotenv
 import ichatbio.agent_response
 import pytest
+import pytest_asyncio
+from conftest import resource
 from ichatbio.agent_response import (
     ArtifactResponse,
 )
 from ichatbio.types import Artifact
 
-from conftest import resource
+from artifact_registry import ArtifactID, ArtifactRegistry
+from context import current_artifacts, current_context, current_request
 from tools import process_data
 
 dotenv.load_dotenv()
@@ -22,17 +25,34 @@ OCCURRENCE_RECORDS = Artifact(
 )
 
 
+@pytest.fixture()
+def artifacts():
+    return ArtifactRegistry([OCCURRENCE_RECORDS])
+
+
+@pytest_asyncio.fixture
+async def run_tool(context, artifacts):
+    async def run(request: str, artifact_id: ArtifactID):
+        current_request.set(request)
+        current_context.set(context)
+        current_artifacts.set(artifacts)
+
+        await process_data.process_data.ainvoke({"artifact_id": artifact_id})
+
+    return run
+
+
 @pytest.mark.httpx_mock(
     should_mock=lambda request: request.url == "https://artifact.test"
 )
 @pytest.mark.asyncio
-async def test_extract_first_record(context, messages, httpx_mock):
+async def test_extract_first_record(run_tool, messages, httpx_mock):
     source_data = json.loads(resource("idigbio_records_search_result.json"))
     httpx_mock.add_response(url="https://artifact.test", json=source_data)
 
     # TODO: mock OpenAI
 
-    await process_data.process_data(context, "Get the first record", OCCURRENCE_RECORDS)
+    await run_tool("Get the first record", OCCURRENCE_RECORDS.local_id)
 
     artifact_message = next((m for m in messages if isinstance(m, ArtifactResponse)))
     assert artifact_message
@@ -51,16 +71,15 @@ async def test_extract_first_record(context, messages, httpx_mock):
     should_mock=lambda request: request.url == "https://artifact.test"
 )
 @pytest.mark.asyncio
-async def test_abort_after_failed_query(context, messages, httpx_mock):
+async def test_abort_after_failed_query(run_tool, messages, httpx_mock):
     source_data = json.loads(resource("idigbio_records_search_result.json"))
     httpx_mock.add_response(url="https://artifact.test", json=source_data)
 
     # TODO: mock OpenAI
 
-    await process_data.process_data(
-        context,
+    await run_tool(
         'Extract the "dwc.moonphases" field from these records',
-        OCCURRENCE_RECORDS,
+        OCCURRENCE_RECORDS.local_id,
     )
 
     assert len(messages) > 1
@@ -72,13 +91,13 @@ async def test_abort_after_failed_query(context, messages, httpx_mock):
     should_mock=lambda request: request.url == "https://artifact.test"
 )
 @pytest.mark.asyncio
-async def test_extract_a_list(context, messages, httpx_mock):
+async def test_extract_a_list(run_tool, messages, httpx_mock):
     source_data = json.loads(resource("idigbio_records_search_result.json"))
     httpx_mock.add_response(url="https://artifact.test", json=source_data)
 
     # TODO: mock OpenAI
 
-    await process_data.process_data(context, "Extract records list", OCCURRENCE_RECORDS)
+    await run_tool("Extract records list", OCCURRENCE_RECORDS.local_id)
 
     artifact_message = next((m for m in messages if isinstance(m, ArtifactResponse)))
     assert artifact_message

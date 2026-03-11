@@ -1,17 +1,15 @@
 from typing import Annotated
 
-import pydantic
 from ichatbio.types import Artifact
+from pydantic import Field
 
-ArtifactID = Annotated[
-    str, pydantic.Field(pattern="^#[0-9a-f]{4}$", examples=["#01ef"])
-]
+ArtifactID = Annotated[str, Field(pattern="^#[0-9a-f]{4}$", examples=["#01ef"])]
 
 
 class ArtifactRegistry:
     def __init__(self, artifacts: list[Artifact]):
         self._artifacts = {artifact.local_id: artifact for artifact in artifacts}
-        self.model = make_validating_artifact_id_model(self)
+        self.model = ArtifactID
 
     def get(self, *ids: ArtifactID) -> Artifact | tuple[Artifact]:
         """
@@ -27,19 +25,3 @@ class ArtifactRegistry:
 
         artifacts = tuple(id_artifacts.values())
         return artifacts if len(ids) > 1 else artifacts[0]
-
-
-def make_validating_artifact_id_model(artifacts: ArtifactRegistry):
-    def check_artifact(local_id: str):
-        artifacts.get(
-            ArtifactID(local_id)
-        )  # Raises an exception if artifact doesn't exist
-        return local_id
-
-    ValidatedArtifactID = Annotated[
-        str,
-        pydantic.Field(pattern="^#[0-9a-f]{4}$", examples=["#01ef"]),
-        pydantic.AfterValidator(check_artifact),
-    ]
-
-    return ValidatedArtifactID

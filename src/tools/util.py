@@ -1,13 +1,21 @@
+import functools
 import traceback
 import types
 from contextlib import contextmanager
 
 import httpx
+import langchain.tools
 from genson import SchemaBuilder
 from genson.schema.strategies import Object
-from ichatbio.agent_response import ArtifactResponse, IChatBioAgentProcess
-from ichatbio.agent_response import ResponseContext
+from ichatbio.agent_response import (
+    ArtifactResponse,
+    IChatBioAgentProcess,
+    ResponseContext,
+)
 from ichatbio.types import Artifact
+
+from artifact_registry import ArtifactRegistry
+from context import current_context
 
 JSON = dict | list | str | int | float | None
 """JSON-serializable primitive types that work with functions like json.dumps(). Note that dicts and lists may contain
@@ -28,6 +36,18 @@ def contains_non_null_content(content: JSON):
             return any([contains_non_null_content(v) for k, v in d.items()])
         case _:
             return True
+
+
+def context_tool(func):
+    @langchain.tools.tool(func.__name__, description=func.__doc__)
+    @functools.wraps(func)  # Preserves function signature
+    async def wrapper(*args, **kwargs):
+        context = current_context.get()
+        with capture_messages(context) as messages:
+            await func(*args, **kwargs)
+            return messages  # Pass the iChatBio messages back to the LangChain agent as context
+
+    return wrapper
 
 
 @contextmanager
@@ -116,7 +136,7 @@ async def retrieve_artifact_content(
                         f"Rewriting URL for Docker networking: {url} -> {rewritten_url}"
                     )
                     url = rewritten_url
-                
+
                 await process.log(
                     f"Retrieving artifact {artifact.local_id} content from {url}"
                 )
@@ -139,7 +159,9 @@ async def retrieve_artifact_content(
 
 def _rewrite_localhost_url(url: str) -> str:
     """Rewrite localhost URLs to host.docker.internal for Docker compatibility."""
-    return url.replace("localhost:", "host.docker.internal:").replace("127.0.0.1:", "host.docker.internal:")
+    return url.replace("localhost:", "host.docker.internal:").replace(
+        "127.0.0.1:", "host.docker.internal:"
+    )
 
 
 async def retrieve_artifact_text(
@@ -156,7 +178,7 @@ async def retrieve_artifact_text(
                         f"Rewriting URL for Docker networking: {url} -> {rewritten_url}"
                     )
                     url = rewritten_url
-                
+
                 await process.log(
                     f"Retrieving artifact {artifact.local_id} content from {url}"
                 )
@@ -173,5 +195,5 @@ async def retrieve_artifact_text(
                 )
     except httpx.HTTPError as e:
         await process.log(f"Error retrieving artifact content: {format_exception(e)}")
-    
+
     return None

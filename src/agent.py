@@ -7,8 +7,10 @@ successfully fulfilled the user's request ("finish") or that it isn't able to do
 
 See the flowchart in README.md for a visualization of the agent.
 """
+
+import contextvars
 import os
-from typing import override, Iterable
+from typing import Iterable, override
 
 import dotenv
 import langchain.agents
@@ -18,12 +20,13 @@ from ichatbio.server import build_agent_app
 from ichatbio.types import AgentCard, AgentEntrypoint, Artifact
 from langchain.tools import tool
 from langchain_openai import ChatOpenAI
-from pydantic import BaseModel
-from pydantic import Field
+from pydantic import BaseModel, Field
 from starlette.applications import Starlette
 
 from artifact_registry import ArtifactRegistry
-from tools import process_data, join_lists, concat_lists, convert_json_csv
+from context import current_artifacts, current_context, current_request
+from tools import concat_lists, convert_json_csv, join_lists
+from tools.process_data import process_data
 
 dotenv.load_dotenv()
 
@@ -71,11 +74,11 @@ class DataHandlerAgent(IChatBioAgent):
 
     @override
     async def run(
-            self,
-            context: ResponseContext,
-            request: str,
-            entrypoint: str,
-            params: EntrypointParameters,  # It's safe to assume type Parameter because we only have one entrypoint
+        self,
+        context: ResponseContext,
+        request: str,
+        entrypoint: str,
+        params: EntrypointParameters,  # It's safe to assume type Parameter because we only have one entrypoint
     ):
         """
         Running this agent first builds a LangChain agent graph (a loop that alternates between decision-making and
@@ -84,6 +87,12 @@ class DataHandlerAgent(IChatBioAgent):
         instantiate new tools each time a request is received; this allows the agent to safely handle concurrent
         requests.
         """
+
+        artifacts = ArtifactRegistry(params.artifacts)
+
+        current_request.set(request)
+        current_context.set(context)
+        current_artifacts.set(artifacts)
 
         # Build the agent's tools
 
@@ -97,9 +106,8 @@ class DataHandlerAgent(IChatBioAgent):
             """Mark the user's request as successfully completed."""
             await context.reply(message)
 
-        artifacts = ArtifactRegistry(params.artifacts)
         tools = [
-            process_data.make_tool(request, context, artifacts),
+            process_data,
             join_lists.make_tool(request, context, artifacts),
             concat_lists.make_tool(request, context, artifacts),
             convert_json_csv.make_tool(request, context, artifacts),
