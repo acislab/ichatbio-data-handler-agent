@@ -1,4 +1,5 @@
 import functools
+import json
 import traceback
 import types
 from contextlib import contextmanager
@@ -130,62 +131,17 @@ def format_exception(e) -> str:
     return "; ".join(traceback.format_exception(e, limit=0))
 
 
-async def retrieve_artifact_content(
+class ProcessError(Exception):
+    """Something went wrong during an agent process."""
+
+
+async def retrieve_text_artifact(
     artifact: Artifact, process: IChatBioAgentProcess
-) -> JSON:
-    try:
-        async with httpx.AsyncClient(follow_redirects=True, timeout=30) as internet:
-            for url in artifact.get_urls():
-                # Rewrite URL if needed (for Docker networking)
-                rewritten_url = _rewrite_localhost_url(url)
-                if rewritten_url != url:
-                    await process.log(
-                        f"Rewriting URL for Docker networking: {url} -> {rewritten_url}"
-                    )
-                    url = rewritten_url
-
-                await process.log(
-                    f"Retrieving artifact {artifact.local_id} content from {url}"
-                )
-                response = await internet.get(url)
-                if response.is_success:
-                    return response.json()  # TODO: catch exception?
-                else:
-                    await process.log(
-                        f"Error downloading artifact content: {response.reason_phrase} ({response.status_code})"
-                    )
-                    raise ValueError()
-            else:
-                await process.log(
-                    "Failed to find where the artifact content is located"
-                )
-                raise ValueError()
-    except httpx.HTTPError as e:
-        await process.log(f"Error retrieving artifact content: {format_exception(e)}")
-
-
-def _rewrite_localhost_url(url: str) -> str:
-    """Rewrite localhost URLs to host.docker.internal for Docker compatibility."""
-    return url.replace("localhost:", "host.docker.internal:").replace(
-        "127.0.0.1:", "host.docker.internal:"
-    )
-
-
-async def retrieve_artifact_text(
-    artifact: Artifact, process: IChatBioAgentProcess
-) -> str | None:
+) -> str:
     """Retrieves artifact content as raw text (for CSV and text formats)."""
     try:
         async with httpx.AsyncClient(follow_redirects=True, timeout=30) as internet:
             for url in artifact.get_urls():
-                # Rewrite URL if needed (for Docker networking)
-                rewritten_url = _rewrite_localhost_url(url)
-                if rewritten_url != url:
-                    await process.log(
-                        f"Rewriting URL for Docker networking: {url} -> {rewritten_url}"
-                    )
-                    url = rewritten_url
-
                 await process.log(
                     f"Retrieving artifact {artifact.local_id} content from {url}"
                 )
@@ -196,11 +152,32 @@ async def retrieve_artifact_text(
                     await process.log(
                         f"Error downloading artifact content: {response.reason_phrase} ({response.status_code})"
                     )
+                    raise ProcessError()
+
             else:
-                await process.log(
-                    "Failed to find where the artifact content is located"
-                )
+                await process.log("Failed to find resolvable URL among artifact's URIs")
+                raise ProcessError()
     except httpx.HTTPError as e:
         await process.log(f"Error retrieving artifact content: {format_exception(e)}")
+        raise ProcessError() from e
 
-    return None
+
+async def retrieve_json_artifact(
+    artifact: Artifact, process: IChatBioAgentProcess
+) -> JSON:
+    try:
+        text = await retrieve_text_artifact(artifact, process)
+        return json.loads(text)
+    except json.JSONDecodeError as e:
+        await process.log("Error decoding JSON")
+        raise ProcessError() from e
+
+
+async def retrieve_json_list_artifact(
+    artifact: Artifact, process: IChatBioAgentProcess
+) -> list:
+    data = await retrieve_json_artifact(artifact, process)
+    if not isinstance(data, list):
+        await process.log(f"Artifact {artifact.local_id} content is not a list")
+        raise ProcessError()
+    return data

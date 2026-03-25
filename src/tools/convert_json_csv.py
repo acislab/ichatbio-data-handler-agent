@@ -10,7 +10,7 @@ from context import (
     current_artifacts,
     ValidatedArtifactID,
 )
-from tools.util import retrieve_artifact_text
+from tools.util import retrieve_text_artifact
 
 NONE = object()
 
@@ -102,7 +102,7 @@ async def convert_json_csv(
     async with context.begin_process("Converting data format") as process:
         process: IChatBioAgentProcess
 
-        artifact_content = await retrieve_artifact_text(source_artifact, process)
+        artifact_content = await retrieve_text_artifact(source_artifact, process)
         if artifact_content is None:
             await process.log("Failed to retrieve data for processing")
             return

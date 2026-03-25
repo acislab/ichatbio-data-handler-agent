@@ -73,16 +73,12 @@ class TestWithArtifactAccess:
         assert new_list == expected_list
 
     @pytest.mark.httpx_mock(
-        should_mock=lambda request: request.url
-        in ("https://artifact.test/list_one", "https://artifact.test/list_two")
+        should_mock=lambda request: request.url in ("https://artifact.test/list_one",)
     )
     @pytest.mark.asyncio
     async def test_dont_concat_things_that_are_not_lists(self, messages, httpx_mock):
         list_one = json.loads('"this is not a list"')
         httpx_mock.add_response(url="https://artifact.test/list_one", json=list_one)
-
-        list_two = [{"new_field": "fee"}, {"new_field": "fi"}, {"new_field": "fo"}]
-        httpx_mock.add_response(url="https://artifact.test/list_two", json=list_two)
 
         await self.run_tool("#1111", "#2222")
 

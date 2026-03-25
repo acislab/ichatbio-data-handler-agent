@@ -22,7 +22,8 @@ from tools.util import (
     contains_non_null_content,
     context_tool,
     extract_json_schema,
-    retrieve_artifact_content,
+    retrieve_json_artifact,
+    ProcessError,
 )
 
 MAX_CHARACTERS_TO_SHOW_AI = 1024 * 10
@@ -176,8 +177,9 @@ async def process_data(artifact_id: ValidatedArtifactID):
         process: IChatBioAgentProcess
 
         await process.log("Retrieving artifact data")
-        source_content = await retrieve_artifact_content(source_artifact, process)
-        if source_content is None:
+        try:
+            source_content = await retrieve_json_artifact(source_artifact, process)
+        except ProcessError:
             return
 
         await process.log("Inferring the JSON data's schema")

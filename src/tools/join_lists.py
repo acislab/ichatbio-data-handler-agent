@@ -3,12 +3,7 @@ import json
 from ichatbio.agent_response import IChatBioAgentProcess
 
 from context import ValidatedArtifactID, current_context, current_artifacts
-from tools.util import context_tool
-from tools.util import retrieve_artifact_content
-
-
-def _is_record(a):
-    return type(a) is dict
+from tools.util import context_tool, ProcessError, retrieve_json_list_artifact
 
 
 @context_tool
@@ -31,19 +26,11 @@ async def join_lists(
     async with context.begin_process("Processing data") as process:
         process: IChatBioAgentProcess
 
-        list_one = await retrieve_artifact_content(artifact_one, process)
-        list_two = await retrieve_artifact_content(artifact_two, process)
-
-        await process.log("Inferring the JSON data's schema")
-        for artifact, content in (
-            (artifact_one, list_one),
-            (artifact_two, list_two),
-        ):
-            if not (type(content) is list) or not all(filter(_is_record, content)):
-                await process.log(
-                    f"Error: artifact {artifact.local_id} is not a list of records"
-                )
-                return
+        try:
+            list_one = await retrieve_json_list_artifact(artifact_one, process)
+            list_two = await retrieve_json_list_artifact(artifact_two, process)
+        except ProcessError:
+            return
 
         new_list = [
             record_one | record_two
