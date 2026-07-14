@@ -9,7 +9,7 @@ See the flowchart in README.md for a visualization of the agent.
 """
 
 import os
-from typing import Iterable, override
+from typing import Any, Iterable, override
 
 import dotenv
 import langchain.agents
@@ -28,6 +28,7 @@ from tools.concat_lists import concat_lists
 from tools.convert_json_csv import convert_json_csv
 from tools.join_lists import join_lists
 from tools.process_data import process_data
+from util import get_llm_client_kwargs, update_llm_credentials
 
 dotenv.load_dotenv()
 
@@ -80,6 +81,7 @@ class DataHandlerAgent(IChatBioAgent):
         request: str,
         entrypoint: str,
         params: EntrypointParameters,  # It's safe to assume type Parameter because we only have one entrypoint
+        metadata: dict[str, Any] | None = None,
     ):
         """
         Running this agent first builds a LangChain agent graph (a loop that alternates between decision-making and
@@ -88,6 +90,7 @@ class DataHandlerAgent(IChatBioAgent):
         instantiate new tools each time a request is received; this allows the agent to safely handle concurrent
         requests.
         """
+x        update_llm_credentials(metadata)
 
         artifacts = ArtifactRegistry(params.artifacts)
 
@@ -118,8 +121,13 @@ class DataHandlerAgent(IChatBioAgent):
 
         # Build a LangChain agent graph
 
-        # TODO: make the LLM configurable
-        llm = ChatOpenAI(model="gpt-4.1", tool_choice="required")
+        llm_kwargs = get_llm_client_kwargs()
+        llm = ChatOpenAI(
+            model=os.getenv("LLM"),
+            tool_choice="required",
+            openai_api_key=llm_kwargs["api_key"],
+            openai_api_base=llm_kwargs["base_url"],
+        )
 
         system_message = make_system_message(params.artifacts)
         agent = langchain.agents.create_agent(
@@ -168,6 +176,11 @@ def make_system_message(artifacts: Iterable[Artifact]):
 
 
 def create_app() -> Starlette:
+    dotenv.load_dotenv()
+
+    if os.getenv("LLM") is None:
+        raise ValueError("LLM environment variable must be set")
+
     agent = DataHandlerAgent()
     app = build_agent_app(agent)
     return app

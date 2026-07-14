@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 from typing import Union
 
 import instructor
@@ -25,6 +26,7 @@ from tools.util import (
     retrieve_json_artifact,
     ProcessError,
 )
+from util import get_llm_client_kwargs
 
 MAX_CHARACTERS_TO_SHOW_AI = 1024 * 10
 MAX_SOURCE_PREVIEW_SIZE = 500
@@ -142,9 +144,11 @@ async def _generate_and_run_jq_query(
     response_model = _make_validating_response_model(source_content, results_box)
 
     try:
-        client: AsyncInstructor = instructor.from_openai(AsyncOpenAI())
+        client: AsyncInstructor = instructor.from_openai(
+            AsyncOpenAI(**get_llm_client_kwargs())
+        )
         result = await client.chat.completions.create(
-            model="gpt-4.1-unfiltered",
+            model=os.getenv("LLM"),
             temperature=0,
             response_model=response_model,
             messages=messages,
