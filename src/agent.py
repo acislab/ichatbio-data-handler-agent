@@ -90,7 +90,7 @@ class DataHandlerAgent(IChatBioAgent):
         instantiate new tools each time a request is received; this allows the agent to safely handle concurrent
         requests.
         """
-x        update_llm_credentials(metadata)
+        update_llm_credentials(metadata)
 
         artifacts = ArtifactRegistry(params.artifacts)
 
