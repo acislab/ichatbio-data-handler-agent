@@ -28,7 +28,7 @@ from tools.concat_lists import concat_lists
 from tools.convert_json_csv import convert_json_csv
 from tools.join_lists import join_lists
 from tools.process_data import process_data
-from util import get_llm_client_kwargs, update_llm_credentials
+from util import get_llm_credentials, set_llm_credentials
 
 dotenv.load_dotenv()
 
@@ -90,7 +90,7 @@ class DataHandlerAgent(IChatBioAgent):
         instantiate new tools each time a request is received; this allows the agent to safely handle concurrent
         requests.
         """
-        update_llm_credentials(metadata)
+        set_llm_credentials(metadata)
 
         artifacts = ArtifactRegistry(params.artifacts)
 
@@ -121,12 +121,12 @@ class DataHandlerAgent(IChatBioAgent):
 
         # Build a LangChain agent graph
 
-        llm_kwargs = get_llm_client_kwargs()
+        llm_credentials = get_llm_credentials()
         llm = ChatOpenAI(
             model=os.getenv("LLM"),
             tool_choice="required",
-            openai_api_key=llm_kwargs["api_key"],
-            openai_api_base=llm_kwargs["base_url"],
+            openai_api_key=llm_credentials["api_key"],
+            openai_api_base=llm_credentials["base_url"],
         )
 
         system_message = make_system_message(params.artifacts)

@@ -26,7 +26,7 @@ from tools.util import (
     retrieve_json_artifact,
     ProcessError,
 )
-from util import get_llm_client_kwargs
+from util import get_llm_credentials
 
 MAX_CHARACTERS_TO_SHOW_AI = 1024 * 10
 MAX_SOURCE_PREVIEW_SIZE = 500
@@ -145,7 +145,7 @@ async def _generate_and_run_jq_query(
 
     try:
         client: AsyncInstructor = instructor.from_openai(
-            AsyncOpenAI(**get_llm_client_kwargs())
+            AsyncOpenAI(**get_llm_credentials())
         )
         result = await client.chat.completions.create(
             model=os.getenv("LLM"),
