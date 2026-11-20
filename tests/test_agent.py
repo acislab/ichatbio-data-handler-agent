@@ -1,16 +1,15 @@
 import json
 
+import agent
 import ichatbio.agent_response
 import pytest
 import pytest_asyncio
+from conftest import resource
 from ichatbio.agent_response import (
     ArtifactResponse,
 )
 from ichatbio.agent_response import DirectResponse
 from ichatbio.types import Artifact
-
-import agent
-from conftest import resource
 from src.agent import DataHandlerAgent
 
 OCCURRENCE_RECORDS = Artifact(
@@ -61,10 +60,10 @@ async def test_abort_after_failed_query(data_handler, context, messages, httpx_m
 
 
 def test_system_message():
-    system_message = agent.make_system_message([OCCURRENCE_RECORDS, OCCURRENCE_RECORDS])
+    system_message = agent.make_system_message("Here they are:\n\n{artifacts}", [OCCURRENCE_RECORDS, OCCURRENCE_RECORDS])
 
     expected = """\
-You manipulate structured data using tools. You can access the following artifacts:
+Here they are:
 
 - local_id: #0000
   description: A list of occurrence records
@@ -74,23 +73,15 @@ You manipulate structured data using tools. You can access the following artifac
 - local_id: #0000
   description: A list of occurrence records
   uris: ['https://artifact.test']
-  metadata: {'source': 'iDigBio'}
-
-If you are unable to fulfill the user's request using your available tools, abort and explain why.\
+  metadata: {'source': 'iDigBio'}\
 """
 
     assert system_message == expected
 
 
 def test_system_message_with_no_artifacts():
-    system_message = agent.make_system_message({})
+    system_message = agent.make_system_message("Any artifacts? {artifacts}", {})
 
-    expected = """\
-You manipulate structured data using tools. You can access the following artifacts:
-
-NO AVAILABLE ARTIFACTS
-
-If you are unable to fulfill the user's request using your available tools, abort and explain why.\
-"""
+    expected = "Any artifacts? NO AVAILABLE ARTIFACTS"
 
     assert system_message == expected

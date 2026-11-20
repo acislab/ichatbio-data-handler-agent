@@ -9,26 +9,29 @@ See the flowchart in README.md for a visualization of the agent.
 """
 
 import os
+from importlib.resources import files
 from typing import Any, Iterable, override
 
 import dotenv
 import langchain.agents
+from app_config import set_llm_credentials, llm_access, settings, reload
+from artifact_registry import ArtifactRegistry
+from context import current_artifacts, current_context, current_request
 from ichatbio.agent import IChatBioAgent
 from ichatbio.agent_response import ResponseContext
 from ichatbio.server import build_agent_app
 from ichatbio.types import AgentCard, AgentEntrypoint, Artifact
+from langchain.agents.middleware import after_model
 from langchain.tools import tool
+from langchain_core.messages import AIMessage
 from langchain_openai import ChatOpenAI
+from langgraph.prebuilt import ToolRuntime
 from pydantic import BaseModel, Field
 from starlette.applications import Starlette
-
-from artifact_registry import ArtifactRegistry
-from context import current_artifacts, current_context, current_request
 from tools.concat_lists import concat_lists
 from tools.convert_json_csv import convert_json_csv
 from tools.join_lists import join_lists
 from tools.process_data import process_data
-from util import get_llm_credentials, set_llm_credentials
 
 dotenv.load_dotenv()
 
@@ -80,7 +83,7 @@ class DataHandlerAgent(IChatBioAgent):
         context: ResponseContext,
         request: str,
         entrypoint: str,
-        params: EntrypointParameters,  # It's safe to assume type Parameter because we only have one entrypoint
+        params: BaseModel | None,
         metadata: dict[str, Any] | None = None,
     ):
         """
@@ -90,70 +93,67 @@ class DataHandlerAgent(IChatBioAgent):
         instantiate new tools each time a request is received; this allows the agent to safely handle concurrent
         requests.
         """
+        params: EntrypointParameters # It's safe to assume type Parameter because we only have one entrypoint
+
         set_llm_credentials(metadata)
-
         artifacts = ArtifactRegistry(params.artifacts)
-
         current_request.set(request)
         current_context.set(context)
         current_artifacts.set(artifacts)
 
-        # Build the agent's tools
-
-        @tool(return_direct=True)  # This tool ends the agent loop
-        async def abort(reason: str):
-            """If you can't fulfill the user's request, abort instead and explain why."""
-            await context.reply(reason)
-
-        @tool(return_direct=True)  # This tool ends the agent loop
-        async def finish(message: str):
-            """Mark the user's request as successfully completed."""
-            await context.reply(message)
-
-        tools = [
-            process_data,
-            join_lists,
-            concat_lists,
-            convert_json_csv,
-            abort,
-            finish,
-        ]
-
-        # Build a LangChain agent graph
-
-        llm_credentials = get_llm_credentials()
-        llm = ChatOpenAI(
-            model=os.getenv("LLM"),
-            tool_choice="required",
-            openai_api_key=llm_credentials["api_key"],
-            openai_api_base=llm_credentials["base_url"],
-        )
-
-        system_message = make_system_message(params.artifacts)
-        agent = langchain.agents.create_agent(
-            model=llm,
-            tools=tools,
-            system_prompt=system_message,
-        )
+        control_loop_prompt = files().joinpath("resources", "control_loop_prompt.md").read_text()
+        system_message = make_system_message(control_loop_prompt, params.artifacts)
 
         # Run the graph
-
-        await agent.ainvoke(
+        langchain_agent = self._build_langchain_agent()
+        await langchain_agent.ainvoke(
             {
                 "messages": [
+                    {"role": "system", "content": system_message},
                     {"role": "user", "content": request},
                 ]
             }
         )
 
+    def _build_langchain_agent(self):
+        @after_model
+        async def share_text_messages(state, runtime):
+            message = state["messages"][-1]
+            if isinstance(message, AIMessage) and isinstance(message.content, str) and message.content:
+                await current_context.get().reply(message.content)
 
-SYSTEM_MESSAGE = """
-You manipulate structured data using tools. You can access the following artifacts:
+        return langchain.agents.create_agent(
+            model=ChatOpenAI(
+                model=settings().llm,
+                streaming=True,
+                base_url=llm_access.get().base_url,
+                api_key=llm_access.get().api_key,
+                reasoning_effort=settings().reasoning_effort,
+                temperature=0,
+                model_kwargs={"tool_choice": "required"}
+            ),
+            tools=[
+                process_data,
+                join_lists,
+                concat_lists,
+                convert_json_csv,
+                abort,
+                finish,
+            ],
+            middleware=[share_text_messages]
+        )
 
-{artifacts}
 
-If you are unable to fulfill the user's request using your available tools, abort and explain why.
-"""
+@tool(return_direct=True)  # This tool ends the agent loop
+async def abort(reason: str, runtime: ToolRuntime):
+    """If you can't fulfill the user's request, abort instead and explain why."""
+    await current_context.get().reply(reason)
+
+
+@tool(return_direct=True)  # This tool ends the agent loop
+async def finish(message: str, runtime: ToolRuntime):
+    """Mark the user's request as successfully completed."""
+    await current_context.get().reply(message)
 
 
 def list_artifact(artifact: Artifact):
@@ -165,8 +165,8 @@ def list_artifact(artifact: Artifact):
 """
 
 
-def make_system_message(artifacts: Iterable[Artifact]):
-    return SYSTEM_MESSAGE.format(
+def make_system_message(template: str, artifacts: Iterable[Artifact]):
+    return template.format(
         artifacts=(
             "\n\n".join([list_artifact(artifact) for artifact in artifacts])
             if artifacts
@@ -177,10 +177,7 @@ def make_system_message(artifacts: Iterable[Artifact]):
 
 def create_app() -> Starlette:
     dotenv.load_dotenv()
-
-    if os.getenv("LLM") is None:
-        raise ValueError("LLM environment variable must be set")
-
+    reload()
     agent = DataHandlerAgent()
     app = build_agent_app(agent)
     return app

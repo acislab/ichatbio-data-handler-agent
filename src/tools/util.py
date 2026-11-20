@@ -1,11 +1,15 @@
+import csv
 import functools
 import json
 import traceback
 import types
 from contextlib import contextmanager
+from io import StringIO
+from typing import Iterator
 
 import httpx
 import langchain.tools
+from context import current_context
 from genson import SchemaBuilder
 from genson.schema.strategies import Object
 from ichatbio.agent_response import (
@@ -15,14 +19,12 @@ from ichatbio.agent_response import (
 )
 from ichatbio.types import Artifact
 
-from context import current_context
-
-JSON = dict | list | str | int | float | None
+Data = dict | list | str | int | float | None
 """JSON-serializable primitive types that work with functions like json.dumps(). Note that dicts and lists may contain
 content that is not JSON-serializable."""
 
 
-def contains_non_null_content(content: JSON):
+def contains_non_null_content(content: Data):
     """
     Returns True only if the JSON-serializable content contains a non-empty value. For example, returns True for [[1]]
     and False for [[]].
@@ -162,21 +164,61 @@ async def retrieve_text_artifact(
         raise ProcessError() from e
 
 
-async def retrieve_json_artifact(
+async def retrieve_artifact_data(
     artifact: Artifact, process: IChatBioAgentProcess
-) -> JSON:
-    try:
-        text = await retrieve_text_artifact(artifact, process)
-        return json.loads(text)
-    except json.JSONDecodeError as e:
-        await process.log("Error decoding JSON")
-        raise ProcessError() from e
+) -> Data:
+    text = await retrieve_text_artifact(artifact, process)
+    formats_tried = set()
+    possible_formats = [
+        # jsonld, #TODO
+        "json",
+        # jsonlines, #TODO
+        "csv",  # Includes TSV and other delimiters
+    ]
+
+    mimetypes = {"application/json": "json", "text/csv": "csv", "text/tsv": "csv"}
+
+    best_guess = mimetypes.get(artifact.mimetype or "")
+    if best_guess is None:
+        await process.log(
+            f'Unexpected MIME type "{artifact.mimetype}"; attempting to guess data format'
+        )
+        best_guess = possible_formats[0]
+
+    while best_guess:
+        formats_tried |= {best_guess}
+        data = _parse_as(best_guess, text)
+        if data is not None:
+            await process.log("Parsed artifact content as " + best_guess.upper())
+            return data
+        best_guess = next((f for f in possible_formats if not f in formats_tried), None)
+
+    await process.log("Failed to parse artifact content")
+    raise ProcessError()
+
+
+def _parse_as(fmt: str, text: str):
+    match fmt:
+        case "json":
+            try:
+                return json.loads(text)
+            except json.JSONDecodeError as e:
+                return None
+        case "csv" | _:
+            return list(read_csv(text))
+
+
+def read_csv(text: str) -> Iterator[dict]:
+    """Assumes the first line is the header"""
+    dialect = csv.Sniffer().sniff(text)
+    reader = csv.DictReader(StringIO(text), dialect=dialect)
+    return reader
 
 
 async def retrieve_json_list_artifact(
     artifact: Artifact, process: IChatBioAgentProcess
 ) -> list:
-    data = await retrieve_json_artifact(artifact, process)
+    data = await retrieve_artifact_data(artifact, process)
     if not isinstance(data, list):
         await process.log(f"Artifact {artifact.local_id} content is not a list")
         raise ProcessError()

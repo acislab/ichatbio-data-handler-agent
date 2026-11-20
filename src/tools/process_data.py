@@ -1,32 +1,30 @@
 import json
 import logging
-import os
 from typing import Union
 
-import instructor
 import jq
-from ichatbio.agent_response import IChatBioAgentProcess
-from ichatbio.types import Artifact
-from instructor import AsyncInstructor
-from instructor.core import InstructorRetryException
-from openai import AsyncOpenAI
-from pydantic import BaseModel, Field, field_validator
 
+import instructor
+import openai
+from app_config import llm_access, settings
 from context import (
     ValidatedArtifactID,
     current_artifacts,
     current_context,
     current_request,
 )
+from ichatbio.agent_response import IChatBioAgentProcess
+from ichatbio.types import Artifact
+from instructor import AsyncInstructor
+from instructor.core import InstructorRetryException
+from pydantic import BaseModel, Field, field_validator
 from tools.util import (
-    JSON,
+    Data,
     contains_non_null_content,
     context_tool,
     extract_json_schema,
-    retrieve_json_artifact,
-    ProcessError,
+    ProcessError, retrieve_artifact_data,
 )
-from util import get_llm_credentials
 
 MAX_CHARACTERS_TO_SHOW_AI = 1024 * 10
 MAX_SOURCE_PREVIEW_SIZE = 500
@@ -54,7 +52,7 @@ class GiveUp(BaseModel):
     reason: str
 
 
-def _make_validating_response_model(source_content: JSON, results_box: list):
+def _make_validating_response_model(source_content: Data, results_box: list):
     class ValidatedJQQuery(JQQuery):
         @field_validator("jq_query_string", mode="after")
         @classmethod
@@ -116,8 +114,8 @@ spelled out, etc.
 
 
 async def _generate_and_run_jq_query(
-    request: str, schema: dict, source_content: JSON, source_artifact: Artifact
-) -> (JQQuery | GiveUp, JSON):
+    request: str, schema: dict, source_content: Data, source_artifact: Artifact
+) -> tuple[JQQuery | GiveUp, Data]:
     source_meta = source_artifact.model_dump_json()
     preview = json.dumps(source_content)[:MAX_SOURCE_PREVIEW_SIZE]
 
@@ -145,17 +143,20 @@ async def _generate_and_run_jq_query(
 
     try:
         client: AsyncInstructor = instructor.from_openai(
-            AsyncOpenAI(**get_llm_credentials())
+            openai.AsyncClient(
+                base_url=llm_access.get().base_url,
+                api_key=llm_access.get().api_key
+            ),
+            model=settings().llm
         )
         result = await client.chat.completions.create(
-            model=os.getenv("LLM"),
             temperature=0,
             response_model=response_model,
             messages=messages,
             max_retries=5,
         )
     except InstructorRetryException as e:
-        logging.warning("Failed to generate JQ query string", e)
+        logging.warning("Failed to generate JQ query string", exc_info=e)
         raise
 
     response: JQQuery | GiveUp = result.response
@@ -182,7 +183,7 @@ async def process_data(artifact_id: ValidatedArtifactID):
 
         await process.log("Retrieving artifact data")
         try:
-            source_content = await retrieve_json_artifact(source_artifact, process)
+            source_content = await retrieve_artifact_data(source_artifact, process)
         except ProcessError:
             return
 

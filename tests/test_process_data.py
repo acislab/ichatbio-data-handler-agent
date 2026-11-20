@@ -3,11 +3,6 @@ import json
 import dotenv
 import ichatbio.agent_response
 import pytest
-from ichatbio.agent_response import (
-    ArtifactResponse,
-)
-from ichatbio.types import Artifact
-
 from artifact_registry import ArtifactRegistry
 from conftest import resource
 from context import (
@@ -16,6 +11,10 @@ from context import (
     current_artifacts,
     ValidatedArtifactID,
 )
+from ichatbio.agent_response import (
+    ArtifactResponse,
+)
+from ichatbio.types import Artifact
 from tools import process_data
 
 dotenv.load_dotenv()
@@ -96,6 +95,17 @@ class TestWithArtifactAccess:
         artifact_message = next(
             (m for m in messages if isinstance(m, ArtifactResponse))
         )
+        assert artifact_message
+
+        records = json.loads(artifact_message.content.decode("utf-8"))
+
+        assert records == self.artifact_content["items"]
+
+    @pytest.mark.asyncio
+    async def test_convert_json_to_csv(self, messages):
+        await self.run_tool("Convert to CSV", "#0000")
+
+        artifact_message = next((m for m in messages if isinstance(m, ArtifactResponse)))
         assert artifact_message
 
         records = json.loads(artifact_message.content.decode("utf-8"))
