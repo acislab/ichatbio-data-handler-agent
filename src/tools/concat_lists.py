@@ -1,14 +1,12 @@
-import json
-
-from ichatbio.agent_response import IChatBioAgentProcess
-
+from artifact_io.json_codec import JsonCodec
 from context import current_artifacts, current_context, ValidatedArtifactID
+from ichatbio.agent_response import IChatBioAgentProcess
 from tools.util import context_tool, ProcessError, retrieve_json_list_artifact
 
 
 @context_tool
 async def concat_lists(
-    artifact_one_id: ValidatedArtifactID, artifact_two_id: ValidatedArtifactID
+        artifact_one_id: ValidatedArtifactID, artifact_two_id: ValidatedArtifactID
 ):
     """
     Concatenates two lists.
@@ -21,7 +19,7 @@ async def concat_lists(
     context = current_context.get()
     artifacts = current_artifacts.get()
 
-    artifact_one, artifact_two = artifacts.get(artifact_one_id, artifact_two_id)
+    artifact_one, artifact_two = artifacts.get_all(artifact_one_id, artifact_two_id)
 
     async with context.begin_process("Processing data") as process:
         process: IChatBioAgentProcess
@@ -33,11 +31,12 @@ async def concat_lists(
             return
 
         new_list = list_one + list_two
+        binary_output = JsonCodec("utf-8").encode(new_list)
 
         await process.create_artifact(
             mimetype="application/json",
             description=f"Joined list of records from artifacts {artifact_one.local_id} and {artifact_two.local_id}",
-            content=json.dumps(new_list).encode("utf-8"),
+            content=binary_output,
             metadata={
                 "source_artifacts": [artifact_one.local_id, artifact_two.local_id]
             },

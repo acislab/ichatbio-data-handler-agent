@@ -2,6 +2,7 @@ import importlib.resources
 import json
 
 import pytest
+from artifact_io import csv_codec
 from ichatbio.agent_response import ProcessBeginResponse, ArtifactResponse
 from ichatbio.types import Artifact
 from tests.conftest import resource
@@ -49,15 +50,15 @@ def test_extract_json_schema():
 class TestReadCSV:
     def test_no_header(self):
         """For now, we assume the first line is a header. That means it won't be read as a record."""
-        data = list(util.read_csv("1,2"))
+        data = list(csv_codec.read_csv("1,2"))
         assert data == []
 
     def test_ok(self):
-        data = list(util.read_csv("a,b\n1,2\n3,4"))
+        data = list(csv_codec.read_csv("a,b\n1,2\n3,4"))
         assert data == [{"a": "1", "b": "2"}, {"a": "3", "b": "4"}]
 
     def test_tab_delimited(self):
-        data = list(util.read_csv("a\tb\n1\t2\n3\t4"))
+        data = list(csv_codec.read_csv("a\tb\n1\t2\n3\t4"))
         assert data == [{"a": "1", "b": "2"}, {"a": "3", "b": "4"}]
 
 

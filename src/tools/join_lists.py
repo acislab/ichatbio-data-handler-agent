@@ -1,14 +1,13 @@
 import json
 
-from ichatbio.agent_response import IChatBioAgentProcess
-
 from context import ValidatedArtifactID, current_context, current_artifacts
+from ichatbio.agent_response import IChatBioAgentProcess
 from tools.util import context_tool, ProcessError, retrieve_json_list_artifact
 
 
 @context_tool
 async def join_lists(
-    artifact_one_id: ValidatedArtifactID, artifact_two_id: ValidatedArtifactID
+        artifact_one_id: ValidatedArtifactID, artifact_two_id: ValidatedArtifactID
 ):
     """
     Joins two lists of equal length, joining items by index to produce a new list of the same length.
@@ -21,7 +20,7 @@ async def join_lists(
     context = current_context.get()
     artifacts = current_artifacts.get()
 
-    artifact_one, artifact_two = artifacts.get(artifact_one_id, artifact_two_id)
+    artifact_one, artifact_two = artifacts.get_all(artifact_one_id, artifact_two_id)
 
     async with context.begin_process("Processing data") as process:
         process: IChatBioAgentProcess

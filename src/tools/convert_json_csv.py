@@ -3,14 +3,13 @@ import json
 from io import StringIO
 from typing import Any, Dict, List, Union
 
-from ichatbio.agent_response import IChatBioAgentProcess
-
 from context import (
     current_context,
     current_artifacts,
     ValidatedArtifactID,
 )
-from tools.util import retrieve_text_artifact
+from ichatbio.agent_response import IChatBioAgentProcess
+from tools.util import retrieve_artifact_bytes
 
 NONE = object()
 
@@ -102,7 +101,7 @@ async def convert_json_csv(
     async with context.begin_process("Converting data format") as process:
         process: IChatBioAgentProcess
 
-        artifact_content = await retrieve_text_artifact(source_artifact, process)
+        artifact_content = await retrieve_artifact_bytes(source_artifact, process)
         if artifact_content is None:
             await process.log("Failed to retrieve data for processing")
             return

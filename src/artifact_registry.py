@@ -11,17 +11,20 @@ class ArtifactRegistry:
         self._artifacts = {artifact.local_id: artifact for artifact in artifacts}
         self.model = ArtifactID
 
-    def get(self, *ids: ArtifactID) -> Artifact | tuple[Artifact]:
+    def get(self, aid: ArtifactID) -> Artifact:
+        """
+        Retrieves the Artifact identified by each id.
+
+        Raises:
+             ValueError: if artifact content can't be retrieved
+        """
+        artifact = self._artifacts.get(aid)
+        if artifact is None:
+            raise ValueError(f"Registry does not contain artifact {aid}")
+        return artifact
+
+    def get_all(self, *ids: ArtifactID) -> tuple[Artifact, ...]:
         """
         Retrieves the Artifact identified by each id. Raises a ValueError if an artifact doesn't exist.
         """
-        id_artifacts = {i: self._artifacts.get(i) for i in ids}
-
-        missing_artifacts = set(
-            (i for i, artifact in id_artifacts.items() if artifact is None)
-        )
-        if missing_artifacts:
-            raise ValueError(f"Unrecognized artifact ID(s): {missing_artifacts}")
-
-        artifacts = tuple(id_artifacts.values())
-        return artifacts if len(ids) > 1 else artifacts[0]
+        return tuple((self._artifacts.get(i) for i in ids))

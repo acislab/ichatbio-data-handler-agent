@@ -7,6 +7,9 @@ import jq
 import instructor
 import openai
 from app_config import llm_access, settings
+from artifact_io.artifact_data import StructuredData
+from artifact_io.json_codec import JsonCodec
+from artifact_io.util import encode_artifact_content
 from context import (
     ValidatedArtifactID,
     current_artifacts,
@@ -19,7 +22,6 @@ from instructor import AsyncInstructor
 from instructor.core import InstructorRetryException
 from pydantic import BaseModel, Field, field_validator
 from tools.util import (
-    Data,
     contains_non_null_content,
     context_tool,
     extract_json_schema,
@@ -52,7 +54,7 @@ class GiveUp(BaseModel):
     reason: str
 
 
-def _make_validating_response_model(source_content: Data, results_box: list):
+def _make_validating_response_model(source_content: StructuredData, results_box: list):
     class ValidatedJQQuery(JQQuery):
         @field_validator("jq_query_string", mode="after")
         @classmethod
@@ -114,8 +116,8 @@ spelled out, etc.
 
 
 async def _generate_and_run_jq_query(
-    request: str, schema: dict, source_content: Data, source_artifact: Artifact
-) -> tuple[JQQuery | GiveUp, Data]:
+        request: str, schema: dict, source_content: StructuredData, source_artifact: Artifact
+) -> tuple[JQQuery | GiveUp, StructuredData]:
     source_meta = source_artifact.model_dump_json()
     preview = json.dumps(source_content)[:MAX_SOURCE_PREVIEW_SIZE]
 
@@ -128,8 +130,8 @@ async def _generate_and_run_jq_query(
         {
             "role": "user",
             "content": "The JSON data to be processed have the JSON Schema definition that follows. Assume that fields "
-            'with no specified "type" are strings.\n\n'
-            + json.dumps(schema).replace(': {"type": "string"}', ""),
+                       'with no specified "type" are strings.\n\n'
+                       + json.dumps(schema).replace(': {"type": "string"}', ""),
         },  # Save some tokens
         {
             "role": "user",
@@ -183,7 +185,9 @@ async def process_data(artifact_id: ValidatedArtifactID):
 
         await process.log("Retrieving artifact data")
         try:
-            source_content = await retrieve_artifact_data(source_artifact, process)
+            data = await retrieve_artifact_data(source_artifact, process)
+            if data:
+                source_content = data.content
         except ProcessError:
             return
 
@@ -202,27 +206,19 @@ async def process_data(artifact_id: ValidatedArtifactID):
         match generation:
             case GiveUp(reason=reason):
                 await process.log(f"Refused to generate a JQ query string: " + reason)
-            case JQQuery(
-                plan=plan,
-                jq_query_string=jq_query_string,
-                output_description=artifact_description,
-            ):
+
+            case JQQuery(plan=plan, jq_query_string=jq_query_string, output_description=artifact_description):
                 await process.log(f"*Plan: {plan}*")
+                await process.log("Generated JQ query", data={"query_string": jq_query_string})
 
-                await process.log(
-                    "Generated JQ query", data={"query_string": jq_query_string}
-                )
-                output_as_bytes = json.dumps(query_result).encode("utf-8")
-                output_size_in_bytes = len(output_as_bytes)
+                binary_output = encode_artifact_content(query_result, JsonCodec())
+                output_size_in_bytes = len(binary_output)
 
-                await process.log(
-                    f"Executed JQ query generated {output_size_in_bytes} bytes of data"
-                )
-
+                await process.log(f"Executed JQ query generated {output_size_in_bytes} bytes of data")
                 await process.create_artifact(
                     mimetype="application/json",
                     description=artifact_description,
-                    content=output_as_bytes,
+                    content=binary_output,
                     metadata={
                         "source_artifact": source_artifact.local_id,
                         "source_jq_query": jq_query_string,
