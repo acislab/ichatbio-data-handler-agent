@@ -1,11 +1,11 @@
-import importlib.resources
 import json
 
 import pytest
-from artifact_io import csv_codec
 from ichatbio.agent_response import ProcessBeginResponse, ArtifactResponse
 from ichatbio.types import Artifact
-from tests.conftest import resource
+
+import test_resources
+from artifact_io import csv_codec
 from tools import util
 from tools.util import contains_non_null_content, extract_json_schema
 
@@ -38,9 +38,7 @@ class TestContainsNonNullContent:
 
 def test_extract_json_schema():
     data = json.loads(
-        importlib.resources.files("resources")
-        .joinpath("idigbio_records_search_result.json")
-        .read_text()
+        (test_resources.dir / "idigbio_records_search_result.json").read_text()
     )
     schema = extract_json_schema(data)
     top_level_fields = set(schema["properties"]["items"]["items"]["properties"].keys())
@@ -85,7 +83,9 @@ class TestRetrieval:
     )
     @pytest.mark.asyncio
     async def test_json(self, httpx_mock, context, messages):
-        source_data = json.loads(resource("idigbio_records_search_result.json"))
+        source_data = json.loads(
+            (test_resources.dir / "idigbio_records_search_result.json").read_text()
+        )
         httpx_mock.add_response(url="https://artifact.test", json=source_data)
 
         async with context.begin_process("Processing") as process:

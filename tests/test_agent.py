@@ -1,16 +1,17 @@
 import json
 
-import agent
 import ichatbio.agent_response
 import pytest
 import pytest_asyncio
-from conftest import resource
 from ichatbio.agent_response import (
     ArtifactResponse,
 )
 from ichatbio.agent_response import DirectResponse
 from ichatbio.types import Artifact
-from src.agent import DataHandlerAgent
+
+import agent
+import test_resources
+from agent import DataHandlerAgent
 
 OCCURRENCE_RECORDS = Artifact(
     local_id="#0000",
@@ -39,12 +40,10 @@ async def test_abort_without_appropriate_tool(data_handler, context, messages):
     assert isinstance(messages[0], DirectResponse)
 
 
-@pytest.mark.httpx_mock(
-    should_mock=lambda request: request.url == "https://artifact.test"
-)
+@pytest.mark.httpx_mock(should_mock=lambda request: request.url == "https://artifact.test")
 @pytest.mark.asyncio
 async def test_abort_after_failed_query(data_handler, context, messages, httpx_mock):
-    source_data = json.loads(resource("idigbio_records_search_result.json"))
+    source_data = json.loads((test_resources.dir / "idigbio_records_search_result.json").read_text())
     httpx_mock.add_response(url="https://artifact.test", json=source_data)
 
     await data_handler.run(
@@ -60,7 +59,9 @@ async def test_abort_after_failed_query(data_handler, context, messages, httpx_m
 
 
 def test_system_message():
-    system_message = agent.make_system_message("Here they are:\n\n{artifacts}", [OCCURRENCE_RECORDS, OCCURRENCE_RECORDS])
+    system_message = agent.make_system_message(
+        "Here they are:\n\n{artifacts}", [OCCURRENCE_RECORDS, OCCURRENCE_RECORDS]
+    )
 
     expected = """\
 Here they are:

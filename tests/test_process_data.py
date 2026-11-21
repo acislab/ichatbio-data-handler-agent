@@ -3,8 +3,9 @@ import json
 import dotenv
 import ichatbio.agent_response
 import pytest
+
+import test_resources
 from artifact_registry import ArtifactRegistry
-from conftest import resource
 from context import (
     current_request,
     current_context,
@@ -35,9 +36,7 @@ class TestWithArtifactAccess:
 
     @pytest.fixture(autouse=True)
     def setup(self, httpx_mock, context):
-        self.artifact_content = json.loads(
-            resource("idigbio_records_search_result.json")
-        )
+        self.artifact_content = json.loads((test_resources.dir / "idigbio_records_search_result.json").read_text())
         httpx_mock.add_response(url="https://artifact.test", json=self.artifact_content)
 
         current_context.set(context)

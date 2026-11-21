@@ -6,8 +6,8 @@ from ichatbio.agent_response import (
 )
 from ichatbio.types import Artifact
 
+import test_resources
 from artifact_registry import ArtifactRegistry
-from conftest import resource
 from context import current_context, current_artifacts, ValidatedArtifactID
 from tools import join_lists
 
@@ -51,7 +51,7 @@ class TestWithArtifactAccess:
     )
     @pytest.mark.asyncio
     async def test_join_lists_by_index(self, messages, httpx_mock):
-        list_one = json.loads(resource("list_of_idigbio_records.json"))
+        list_one = json.loads((test_resources.dir / "list_of_idigbio_records.json").read_text())
         httpx_mock.add_response(url="https://artifact.test/list_one", json=list_one)
 
         list_two = [{"new_field": "fee"}, {"new_field": "fi"}, {"new_field": "fo"}]

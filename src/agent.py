@@ -9,14 +9,10 @@ See the flowchart in README.md for a visualization of the agent.
 """
 
 import os
-from importlib.resources import files
 from typing import Any, Iterable, override
 
 import dotenv
 import langchain.agents
-from app_config import set_llm_credentials, llm_access, settings, reload
-from artifact_registry import ArtifactRegistry
-from context import current_artifacts, current_context, current_request
 from ichatbio.agent import IChatBioAgent
 from ichatbio.agent_response import ResponseContext
 from ichatbio.server import build_agent_app
@@ -28,6 +24,11 @@ from langchain_openai import ChatOpenAI
 from langgraph.prebuilt import ToolRuntime
 from pydantic import BaseModel, Field
 from starlette.applications import Starlette
+
+import resources
+from app_config import set_llm_credentials, llm_access, settings, reload
+from artifact_registry import ArtifactRegistry
+from context import current_artifacts, current_context, current_request
 from tools.concat_lists import concat_lists
 from tools.convert_json_csv import convert_json_csv
 from tools.join_lists import join_lists
@@ -101,7 +102,7 @@ class DataHandlerAgent(IChatBioAgent):
         current_context.set(context)
         current_artifacts.set(artifacts)
 
-        control_loop_prompt = files().joinpath("resources", "control_loop_prompt.md").read_text()
+        control_loop_prompt = (resources.dir / "control_loop_prompt.md").read_text()
         system_message = make_system_message(control_loop_prompt, params.artifacts)
 
         # Run the graph

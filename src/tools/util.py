@@ -6,7 +6,7 @@ from contextlib import contextmanager
 import artifact_io.util
 import httpx
 import langchain.tools
-from artifact_io.artifact_data import DataCodec, CodecError, StructuredData, ArtifactData
+from artifact_io.artifact_data import DataCodec, CodecError, StructuredData
 from context import current_context
 from genson import SchemaBuilder
 from genson.schema.strategies import Object
@@ -160,7 +160,7 @@ async def retrieve_artifact_bytes(
         raise ProcessError() from e
 
 
-async def _decode(binary: bytes, try_codec: DataCodec | None, process: IChatBioAgentProcess) -> ArtifactData:
+async def _decode(binary: bytes, try_codec: DataCodec | None, process: IChatBioAgentProcess) -> StructuredData:
     codec = try_codec if try_codec else artifact_io.util.guess_type(binary)
     try:
         return codec.decode(binary)
@@ -172,7 +172,7 @@ async def _decode(binary: bytes, try_codec: DataCodec | None, process: IChatBioA
             raise ProcessError()
 
 
-async def retrieve_artifact_data(artifact: Artifact, process: IChatBioAgentProcess) -> ArtifactData | None:
+async def retrieve_artifact_data(artifact: Artifact, process: IChatBioAgentProcess) -> StructuredData | None:
     binary = await retrieve_artifact_bytes(artifact, process)
     if not binary:
         await process.log("Artifact has no content")
@@ -186,7 +186,7 @@ async def retrieve_json_list_artifact(
         artifact: Artifact, process: IChatBioAgentProcess
 ) -> list:
     data = await retrieve_artifact_data(artifact, process)
-    if not (data and isinstance(data.content, list)):
+    if not (data and isinstance(data, list)):
         await process.log(f"Artifact {artifact.local_id} content is not a list")
         raise ProcessError()
-    return data.content
+    return data

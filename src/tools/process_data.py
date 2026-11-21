@@ -185,9 +185,7 @@ async def process_data(artifact_id: ValidatedArtifactID):
 
         await process.log("Retrieving artifact data")
         try:
-            data = await retrieve_artifact_data(source_artifact, process)
-            if data:
-                source_content = data.content
+            source_content = await retrieve_artifact_data(source_artifact, process)
         except ProcessError:
             return
 

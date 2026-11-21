@@ -5,7 +5,7 @@ from artifact_io.artifact_data import DataCodec, StructuredData
 
 
 class JsonCodec(DataCodec):
-    def __init__(self, text_encoding):
+    def __init__(self, text_encoding="utf-8"):
         self.text_encoding = text_encoding
 
     def decode(self, binary: bytes) -> StructuredData:

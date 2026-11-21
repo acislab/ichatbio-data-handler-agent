@@ -1,5 +1,6 @@
 import charset_normalizer
 import filetype
+
 from artifact_io.artifact_data import DataCodec, StructuredData
 from artifact_io.csv_codec import CsvCodec
 from artifact_io.json_codec import JsonCodec

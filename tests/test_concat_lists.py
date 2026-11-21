@@ -6,8 +6,8 @@ from ichatbio.agent_response import (
 )
 from ichatbio.types import Artifact
 
+import test_resources
 from artifact_registry import ArtifactRegistry
-from conftest import resource
 from context import current_context, current_artifacts, ValidatedArtifactID
 from tools import concat_lists
 
@@ -51,7 +51,7 @@ class TestWithArtifactAccess:
     )
     @pytest.mark.asyncio
     async def test_concat_lists(self, messages, httpx_mock):
-        source_list = json.loads(resource("list_of_idigbio_records.json"))
+        source_list = json.loads((test_resources.dir / "list_of_idigbio_records.json").read_text())
 
         list_one = source_list[:1]
         httpx_mock.add_response(url="https://artifact.test/list_one", json=list_one)
