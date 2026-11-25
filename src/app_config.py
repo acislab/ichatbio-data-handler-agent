@@ -1,4 +1,5 @@
 from contextvars import ContextVar
+
 from pydantic import Field, BaseModel
 from pydantic_settings import BaseSettings
 
@@ -9,6 +10,7 @@ class Settings(BaseSettings):
     llm: str = Field("gpt-5.6-terra")
     reasoning_effort: str | None = Field("high")
     use_llm_proxy: bool = Field(True)
+    agent_base_url: str | None = Field(None)
 
 
 def settings() -> Settings:

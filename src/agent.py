@@ -8,7 +8,6 @@ successfully fulfilled the user's request ("finish") or that it isn't able to do
 See the flowchart in README.md for a visualization of the agent.
 """
 
-import os
 from typing import Any, Iterable, override
 
 import dotenv
@@ -33,8 +32,6 @@ from tools.concat_lists import concat_lists
 from tools.convert_json_csv import convert_json_csv
 from tools.join_lists import join_lists
 from tools.process_data import process_data
-
-dotenv.load_dotenv()
 
 DESCRIPTION = """\
 Reads and processes JSON artifacts. This agent can do the following:
@@ -68,7 +65,7 @@ class DataHandlerAgent(IChatBioAgent):
             description=DESCRIPTION,
             icon="https://raw.githubusercontent.com/acislab/ichatbio/refs/heads/main/icon.svg",
             documentation_url="https://github.com/acislab/ichatbio-data-handler-agent",
-            url=os.getenv("URL", None),
+            url=settings().agent_base_url,
             entrypoints=[
                 AgentEntrypoint(
                     id="process_data",
@@ -80,12 +77,12 @@ class DataHandlerAgent(IChatBioAgent):
 
     @override
     async def run(
-        self,
-        context: ResponseContext,
-        request: str,
-        entrypoint: str,
-        params: BaseModel | None,
-        metadata: dict[str, Any] | None = None,
+            self,
+            context: ResponseContext,
+            request: str,
+            entrypoint: str,
+            params: BaseModel | None,
+            metadata: dict[str, Any] | None = None,
     ):
         """
         Running this agent first builds a LangChain agent graph (a loop that alternates between decision-making and
@@ -94,7 +91,7 @@ class DataHandlerAgent(IChatBioAgent):
         instantiate new tools each time a request is received; this allows the agent to safely handle concurrent
         requests.
         """
-        params: EntrypointParameters # It's safe to assume type Parameter because we only have one entrypoint
+        params: EntrypointParameters  # It's safe to assume type Parameter because we only have one entrypoint
 
         set_llm_credentials(metadata)
         artifacts = ArtifactRegistry(params.artifacts)

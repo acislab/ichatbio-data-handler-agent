@@ -145,10 +145,7 @@ async def _generate_and_run_jq_query(
 
     try:
         client: AsyncInstructor = instructor.from_openai(
-            openai.AsyncClient(
-                base_url=llm_access.get().base_url,
-                api_key=llm_access.get().api_key
-            ),
+            openai.AsyncClient(base_url=llm_access.get().base_url, api_key=llm_access.get().api_key),
             model=settings().llm
         )
         result = await client.chat.completions.create(
